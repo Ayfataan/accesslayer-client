@@ -29,7 +29,12 @@ export const queryKeys = {
 			['creators', creatorId, 'activity'] as const,
 		twap: (creatorId: string) =>
 			['creators', creatorId, 'twap', '24h'] as const,
+<<<<<<< HEAD
 		stats: (creatorId: string) => ['creators', creatorId, 'stats'] as const,
+=======
+		auctionBids: (creatorId: string) =>
+			['creators', creatorId, 'auction-bids'] as const,
+>>>>>>> bc45f6e (feat: add pre-launch auction phase UI for creator key listings (#924))
 		curveConfig: (creatorId: string) =>
 			['creators', creatorId, 'curve-config'] as const,
 		curveMigrations: (creatorId: string) =>
