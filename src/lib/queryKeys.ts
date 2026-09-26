@@ -55,6 +55,8 @@ export const queryKeys = {
 		activity: (address: string) => ['wallet', address, 'activity'] as const,
 		tradeHistory: (address: string) =>
 			['wallet', address, 'tradeHistory'] as const,
+		stakingPositions: (address: string) =>
+			['wallet', address, 'staking-positions'] as const,
 	},
 	notifications: {
 		all: () => ['notifications'] as const,
@@ -94,5 +96,10 @@ export const queryKeys = {
 		all: () => ['referrals'] as const,
 		summary: (wallet: string) => ['referrals', wallet, 'summary'] as const,
 		wallets: (wallet: string) => ['referrals', wallet, 'wallets'] as const,
+	},
+	staking: {
+		all: () => ['staking'] as const,
+		dashboard: (wallet: string) =>
+			['staking', wallet, 'dashboard'] as const,
 	},
 } as const;
