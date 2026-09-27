@@ -9,7 +9,7 @@ import CreatorProfileInfoGrid from '@/components/common/CreatorProfileInfoGrid';
 import CreatorActivityFeed from '@/components/common/CreatorActivityFeed';
 import CreatorProfileStaleIndicator from '@/components/common/CreatorProfileStaleIndicator';
 import CreatorProfileStatRow from '@/components/common/CreatorProfileStatRow';
-import { BondingCurveChart } from '@/components/common/BondingCurveChart';
+import BondingCurveChart from '@/components/common/BondingCurveChart';
 import KeySimulationTool from '@/components/common/KeySimulationTool';
 import BuyCooldownCountdown from '@/components/common/BuyCooldownCountdown';
 import KeyHolderList from '@/components/common/KeyHolderList';
@@ -43,13 +43,17 @@ import { usePurchaseConfetti } from '@/hooks/usePurchaseConfetti';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useKeyTwap } from '@/hooks/useKeyTwap';
 import { useKeyStats } from '@/hooks/useKeyStats';
+import { useKeyUniqueTraders } from '@/hooks/useKeyUniqueTraders';
 import { useKeyConfig } from '@/hooks/useKeyConfig';
 import KeyStatsPanel from '@/components/common/KeyStatsPanel';
 import Skeleton from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
 import KeyDeprecationBanner from '@/components/common/KeyDeprecationBanner';
+import MergeProposalBanner from '@/components/common/MergeProposalBanner';
 import KeyBuybackModal from '@/components/common/KeyBuybackModal';
 import type { KeyBuybackReceipt } from '@/hooks/useKeyBuyback';
+import { usePerformanceBond } from '@/hooks/usePerformanceBond';
+import PerformanceBondPanel from '@/components/common/PerformanceBondPanel';
 
 function CreatorDetailPageContent() {
 	usePurchaseConfetti();
@@ -112,6 +116,8 @@ function CreatorDetailPageContent() {
 		isLoading: isKeyStatsLoading,
 		isError: isKeyStatsError,
 	} = useKeyStats(id || '');
+	const { data: uniqueTraders, isLoading: isUniqueTradersLoading } =
+		useKeyUniqueTraders(id || '');
 	// Live key config powers the bid-ask spread shown next to the buy
 	// action and inside the trade dialog (#951).
 	const { data: keyConfig, isLoading: isKeyConfigLoading } = useKeyConfig(
@@ -128,6 +134,15 @@ function CreatorDetailPageContent() {
 		source: oracleSource,
 		isLoading: isOracleLoading,
 	} = useKeyOraclePrice(id || '', { spotPriceStroops });
+
+	// Performance bond status for creator key protection (#975)
+	const {
+		data: performanceBondData,
+		isLoading: isPerformanceBondLoading,
+		isError: isPerformanceBondError,
+	} = usePerformanceBond(id || '');
+	const performanceBond =
+		performanceBondData ?? creator?.performanceBond ?? null;
 
 	// Track stale data indicator
 	const { shouldShowBadge, handleRefetch } = useCreatorProfileStaleIndicator(
@@ -290,6 +305,12 @@ function CreatorDetailPageContent() {
 						recentSettlement={recentSettlement}
 					/>
 				)}
+				{/* Merge proposal voting for source key holders (#983) */}
+				<MergeProposalBanner
+					sourceKeyId={id || ''}
+					holdingsCount={holdingsCount}
+					isConnected={Boolean(userAddress)}
+				/>
 				<div className="flex items-start gap-3">
 					<div className="min-w-0 flex-1">
 						<CreatorProfileHeader
@@ -328,6 +349,14 @@ function CreatorDetailPageContent() {
 					stats={keyStats}
 					isLoading={isKeyStatsLoading}
 					isError={isKeyStatsError}
+					uniqueTraders={uniqueTraders}
+					isUniqueTradersLoading={isUniqueTradersLoading}
+				/>
+				{/* Performance Bond Status Panel (#975) */}
+				<PerformanceBondPanel
+					bond={performanceBond}
+					isLoading={isPerformanceBondLoading}
+					isError={isPerformanceBondError}
 				/>
 				{/* Deprecation Notice and Buy Action on Key Detail Page */}
 				{isKeyDeprecated(creator) && (
@@ -537,14 +566,15 @@ function CreatorDetailPageContent() {
 						creatorId={creator.id}
 						creatorTitle={creator.title || creator.name || 'Creator Key'}
 						holdingsCount={holdingsCount}
-						buybackPriceStroops={resolveCreatorKeyPriceStroops(creator) ?? 0}
+						buybackPriceStroops={
+							resolveCreatorKeyPriceStroops(creator) ?? 0
+						}
 						userAddress={userAddress}
 						onSettled={receipt => {
 							setRecentSettlement(receipt);
 						}}
 					/>
 				)}
-
 				{creator && (
 					<TradeDialog
 						open={buyDialogOpen}

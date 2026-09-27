@@ -1,5 +1,5 @@
 // src/services/course.service.ts
-import { BaseApiService, type APIResponse } from './api.service';
+import { BaseApiService, ApiError, type APIResponse } from './api.service';
 import { cacheManager } from '@/utils/cache.utils';
 
 export interface Course {
@@ -92,6 +92,8 @@ export interface Course {
 	deprecated?: boolean;
 	/** Optional human-readable reason surfaced in the deprecation notice. */
 	deprecationReason?: string | null;
+	/** Performance bond status for creator key protection (#975). */
+	performanceBond?: PerformanceBond | null;
 }
 
 export interface CurveMilestone {
@@ -188,6 +190,33 @@ export interface KeyOraclePrice {
 	maxAgeSeconds?: number | null;
 }
 
+export type PerformanceBondState = 'staked' | 'released' | 'forfeited';
+
+/**
+ * Creator performance bond status (#975).
+ *
+ * Surfaces the bonded amount, current state ('staked' | 'released' | 'forfeited'),
+ * target milestone required for release, and state-specific details (release timestamp
+ * or forfeiture reason).
+ */
+export interface PerformanceBond {
+	keyId?: string;
+	/** Bonded amount in XLM. */
+	amountXlm?: number | null;
+	/** Bonded amount in stroops (1 XLM = 10,000,000 stroops). */
+	amountStroops?: number | null;
+	/** Current state of the bond: 'staked' | 'released' | 'forfeited'. */
+	state: PerformanceBondState | string;
+	/** Maturity milestone required for bond release (e.g. "1,000 Keys Sold"). */
+	milestone?: string | null;
+	targetMilestone?: string | null;
+	/** ISO timestamp when the bond was released (present for 'released' state). */
+	releasedAt?: string | null;
+	/** Reason for forfeiture (present for 'forfeited' state). */
+	forfeitureReason?: string | null;
+	reason?: string | null;
+}
+
 export type CourseSortOption =
 	'volume_desc' | 'price_asc' | 'price_desc' | 'newest';
 
@@ -270,6 +299,17 @@ export interface KeyStats {
 	twap1h: number | null;
 	/** 24-hour time-weighted average price, in stroops. */
 	twap24h: number | null;
+}
+
+/**
+ * Unique trader count for a creator key (#1020): distinct wallets that have
+ * bought or sold the key at least once.
+ */
+export interface KeyUniqueTraders {
+	/** Current all-time unique trader count. */
+	uniqueTraders: number | null;
+	/** Unique trader count as of 24 hours ago, used for the trend indicator. */
+	uniqueTraders24hAgo: number | null;
 }
 
 class CourseService extends BaseApiService {
@@ -400,6 +440,18 @@ class CourseService extends BaseApiService {
 		}
 	}
 
+	// Get the unique trader count - GET /keys/:keyId/unique-traders
+	async getKeyUniqueTraders(keyId: string): Promise<KeyUniqueTraders> {
+		try {
+			const response = await this.api.get<APIResponse<KeyUniqueTraders>>(
+				`/keys/${keyId}/unique-traders`
+			);
+			return response.data.data;
+		} catch (error) {
+			throw this.handleError(error);
+		}
+	}
+
 	// Get enrolled courses - GET /courses/enrolled
 	async getEnrolledCourses(): Promise<Course[]> {
 		try {
@@ -504,10 +556,9 @@ class CourseService extends BaseApiService {
 		quantity: number
 	): Promise<Record<string, number>> {
 		try {
-			const response = await this.api.get<APIResponse<Record<string, number>>>(
-				`/keys/${keyId}/simulate`,
-				{ params: { quantity } }
-			);
+			const response = await this.api.get<
+				APIResponse<Record<string, number>>
+			>(`/keys/${keyId}/simulate`, { params: { quantity } });
 			return response.data.data;
 		} catch (error) {
 			throw this.handleError(error);
@@ -591,6 +642,21 @@ class CourseService extends BaseApiService {
 			);
 			return response.data.data;
 		} catch (error) {
+			throw this.handleError(error);
+		}
+	}
+
+	// Get creator performance bond status - GET /keys/:keyId/performance-bond (#975)
+	async getPerformanceBond(keyId: string): Promise<PerformanceBond | null> {
+		try {
+			const response = await this.api.get<APIResponse<PerformanceBond>>(
+				`/keys/${keyId}/performance-bond`
+			);
+			return response.data.data;
+		} catch (error: unknown) {
+			if (error instanceof ApiError && error.status === 404) {
+				return null;
+			}
 			throw this.handleError(error);
 		}
 	}
