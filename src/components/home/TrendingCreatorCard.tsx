@@ -32,6 +32,17 @@ export default function TrendingCreatorCard({ creator }: Props) {
 			<div className="p-5">
 				<h3 className="truncate font-jakarta text-base font-semibold text-gray-900">
 					{name}
+					{/* Deprecation badge (issue #996): a deprecated key must be
+					    marked in marketplace listings so buyers see its status
+					    before they click through. */}
+					{creator.deprecation && (
+						<span
+							data-testid="deprecation-badge"
+							className="ml-2 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-100 px-2 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-amber-700"
+						>
+							Deprecated
+						</span>
+					)}
 				</h3>
 
 				{creator.description && (

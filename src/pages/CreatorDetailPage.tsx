@@ -8,13 +8,18 @@ import { CreatorProfileHeaderSkeleton } from '@/components/common/CreatorSkeleto
 import { bpsToPercent } from '@/utils/numberFormat.utils';
 import { resolveCreatorKeyPriceStroops } from '@/utils/keyPriceDisplay.utils';
 import CreatorPageErrorBoundary from '@/components/common/CreatorPageErrorBoundary';
+import DeprecationBanner from '@/components/common/DeprecationBanner';
 import { ApiError } from '@/services/api.service';
 import { useNavigationTiming } from '@/hooks/useNavigationTiming';
+import { useState } from 'react';
 
 function CreatorDetailPageContent() {
 	const { id } = useParams<{ id: string }>();
 	const { data: creator, isLoading, error } = useCreatorDetail(id || '');
 	useNavigationTiming('creator_profile');
+	// Dismissal is per-visit only: a deprecation is a standing fact, not a
+	// promo, so holders keep seeing the notice on later visits (issue #996).
+	const [deprecationDismissed, setDeprecationDismissed] = useState(false);
 
 	if (isLoading) {
 		return (
@@ -50,6 +55,12 @@ function CreatorDetailPageContent() {
 	return (
 		<main className="min-h-screen bg-[#06111f] px-6 py-16 text-white md:px-12">
 			<div className="mx-auto max-w-7xl space-y-8">
+				{creator.deprecation && !deprecationDismissed && (
+					<DeprecationBanner
+						deprecation={creator.deprecation}
+						onDismiss={() => setDeprecationDismissed(true)}
+					/>
+				)}
 				<CreatorBreadcrumb
 					parentLabel="Marketplace"
 					parentHref="/"

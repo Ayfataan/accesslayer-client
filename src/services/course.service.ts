@@ -27,6 +27,13 @@ export interface Course {
 	protocolFeeBps?: number;
 	/** Last up to 7 price history points in stroops, oldest to newest. */
 	priceHistory?: number[];
+	/** Present when the key has been deprecated (issue #996). */
+	deprecation?: {
+		deprecatedAt: string;
+		reason: string;
+		successorId?: string;
+		successorName?: string;
+	};
 }
 
 export type CourseSortOption =
