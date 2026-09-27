@@ -31,6 +31,8 @@ import SpreadIndicator from '@/components/common/SpreadIndicator';
 import { cn } from '@/lib/utils';
 import { ArrowRight } from 'lucide-react';
 import { useSlippageTolerancePreference } from '@/hooks/useSlippageTolerancePreference';
+import CircuitBreakerStatusIndicator from '@/components/common/CircuitBreakerStatusIndicator';
+import { evaluateCircuitBreakerStatus } from '@/utils/circuitBreaker.utils';
 
 export interface BuySellTradeParams {
 	creatorId?: string;
@@ -60,6 +62,10 @@ export interface BuySellKeyFlowProps {
 	keyConfig?: KeyConfig | null;
 	/** Whether the key config query is still loading. */
 	isKeyConfigLoading?: boolean;
+	/** Key-level circuit breaker threshold in percent (defaults to keyConfig or 15%) (#1034). */
+	circuitBreakerThresholdPercent?: number | null;
+	/** Key-level circuit breaker threshold in basis points (defaults to keyConfig or 1500) (#1034). */
+	circuitBreakerThresholdBps?: number | null;
 	onSubmitTrade?: (params: BuySellTradeParams) => Promise<void> | void;
 	onSuccess?: (params: BuySellTradeParams) => void;
 	onError?: (error: unknown) => void;
@@ -91,6 +97,8 @@ export const BuySellKeyFlow: React.FC<BuySellKeyFlowProps> = ({
 	currentLedger,
 	keyConfig,
 	isKeyConfigLoading = false,
+	circuitBreakerThresholdPercent,
+	circuitBreakerThresholdBps,
 	onSubmitTrade,
 	onSuccess,
 	onError,
@@ -219,6 +227,35 @@ export const BuySellKeyFlow: React.FC<BuySellKeyFlowProps> = ({
 			currentSupply: currentSupply ?? 0,
 		});
 	}, [isValid, parsedAmount, side, currentSupply]);
+
+	const effectiveCircuitBreakerThresholdPercent =
+		circuitBreakerThresholdPercent ??
+		keyConfig?.circuitBreakerThresholdPercent ??
+		null;
+	const effectiveCircuitBreakerThresholdBps =
+		circuitBreakerThresholdBps ??
+		keyConfig?.circuitBreakerThresholdBps ??
+		null;
+
+	const circuitBreakerStatus = useMemo(() => {
+		if (side !== 'buy' || !isValid) return null;
+		return evaluateCircuitBreakerStatus({
+			impactPercent: priceImpactPercent,
+			thresholdPercent: effectiveCircuitBreakerThresholdPercent,
+			thresholdBps: effectiveCircuitBreakerThresholdBps,
+		});
+	}, [
+		side,
+		isValid,
+		priceImpactPercent,
+		effectiveCircuitBreakerThresholdPercent,
+		effectiveCircuitBreakerThresholdBps,
+	]);
+
+	const isCircuitBreakerBreached = Boolean(
+		side === 'buy' && circuitBreakerStatus?.isBreached
+	);
+
 	const impactWarningActive =
 		isValid &&
 		isHighPriceImpact(priceImpactPercent, slippageTolerancePercent);
@@ -244,13 +281,13 @@ export const BuySellKeyFlow: React.FC<BuySellKeyFlowProps> = ({
 	// Open confirmation modal
 	const handleReviewOrder = () => {
 		setTouched(true);
-		if (!isValid || (impactWarningActive && !impactAcknowledged)) return;
+		if (!isValid || isCircuitBreakerBreached || (impactWarningActive && !impactAcknowledged)) return;
 		setConfirmationOpen(true);
 	};
 
 	// Final submission
 	const handleConfirmSubmission = async () => {
-		if (impactWarningActive && !impactAcknowledged) return;
+		if (isCircuitBreakerBreached || (impactWarningActive && !impactAcknowledged)) return;
 		setInternalSubmitting(true);
 		const tradeParams: BuySellTradeParams = {
 			creatorId,
@@ -426,6 +463,14 @@ export const BuySellKeyFlow: React.FC<BuySellKeyFlowProps> = ({
 						{validationError}
 					</p>
 				)}
+				{side === 'buy' && (
+					<CircuitBreakerStatusIndicator
+						impactPercent={priceImpactPercent}
+						thresholdPercent={effectiveCircuitBreakerThresholdPercent}
+						thresholdBps={effectiveCircuitBreakerThresholdBps}
+						isValid={isValid}
+					/>
+				)}
 			</div>
 
 			{/* Price & Cost Estimate */}
@@ -495,6 +540,7 @@ export const BuySellKeyFlow: React.FC<BuySellKeyFlowProps> = ({
 				disabled={
 					!isValid ||
 					isSubmitting ||
+					isCircuitBreakerBreached ||
 					(impactWarningActive && !impactAcknowledged)
 				}
 				data-testid="trade-review-button"
@@ -506,7 +552,11 @@ export const BuySellKeyFlow: React.FC<BuySellKeyFlowProps> = ({
 				)}
 			>
 				<span className="flex items-center justify-center gap-1.5">
-					{side === 'buy' ? 'Review Buy Order' : 'Review Sell Order'}
+					{side === 'buy'
+						? isCircuitBreakerBreached
+							? 'Circuit Breaker Tripped'
+							: 'Review Buy Order'
+						: 'Review Sell Order'}
 					<ArrowRight className="h-4 w-4" />
 				</span>
 			</Button>

@@ -55,6 +55,8 @@ import {
 import type { KeyConfig } from '@/services/course.service';
 import SpreadIndicator from '@/components/common/SpreadIndicator';
 import { useSlippageTolerancePreference } from '@/hooks/useSlippageTolerancePreference';
+import CircuitBreakerStatusIndicator from '@/components/common/CircuitBreakerStatusIndicator';
+import { evaluateCircuitBreakerStatus } from '@/utils/circuitBreaker.utils';
 
 export type TradeSide = 'buy' | 'sell';
 
@@ -83,6 +85,10 @@ export interface TradeDialogProps {
 	keyConfig?: KeyConfig | null;
 	/** Whether the key config query is still loading. */
 	isKeyConfigLoading?: boolean;
+	/** Key-level circuit breaker threshold in percent (defaults to keyConfig or 15%) (#1034). */
+	circuitBreakerThresholdPercent?: number | null;
+	/** Key-level circuit breaker threshold in basis points (defaults to keyConfig or 1500) (#1034). */
+	circuitBreakerThresholdBps?: number | null;
 	/** Whether to display the confirmation modal step before submission (#919). Defaults to false. */
 	requireConfirmation?: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -112,6 +118,8 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 	maxBuyQuantity = null,
 	keyConfig,
 	isKeyConfigLoading = false,
+	circuitBreakerThresholdPercent,
+	circuitBreakerThresholdBps,
 	requireConfirmation = false,
 	onOpenChange,
 	onConfirm,
@@ -342,6 +350,35 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 			currentSupply: currentSupply ?? 0,
 		});
 	}, [amountValid, parsedAmount, side, currentSupply]);
+
+	const effectiveCircuitBreakerThresholdPercent =
+		circuitBreakerThresholdPercent ??
+		keyConfig?.circuitBreakerThresholdPercent ??
+		null;
+	const effectiveCircuitBreakerThresholdBps =
+		circuitBreakerThresholdBps ??
+		keyConfig?.circuitBreakerThresholdBps ??
+		null;
+
+	const circuitBreakerStatus = useMemo(() => {
+		if (side !== 'buy' || !amountValid) return null;
+		return evaluateCircuitBreakerStatus({
+			impactPercent: priceImpactPercent,
+			thresholdPercent: effectiveCircuitBreakerThresholdPercent,
+			thresholdBps: effectiveCircuitBreakerThresholdBps,
+		});
+	}, [
+		side,
+		amountValid,
+		priceImpactPercent,
+		effectiveCircuitBreakerThresholdPercent,
+		effectiveCircuitBreakerThresholdBps,
+	]);
+
+	const isCircuitBreakerBreached = Boolean(
+		side === 'buy' && circuitBreakerStatus?.isBreached
+	);
+
 	const impactWarningActive =
 		amountValid &&
 		isHighPriceImpact(priceImpactPercent, slippageTolerancePercent);
@@ -556,6 +593,14 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 						)}
 				</div>
 				{side === 'buy' && (
+					<CircuitBreakerStatusIndicator
+						impactPercent={priceImpactPercent}
+						thresholdPercent={effectiveCircuitBreakerThresholdPercent}
+						thresholdBps={effectiveCircuitBreakerThresholdBps}
+						isValid={amountValid}
+					/>
+				)}
+				{side === 'buy' && (
 					<NetworkFeeHint
 						variant="text"
 						fee={estimatedNetworkFee}
@@ -658,6 +703,7 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 			<Button
 				type="button"
 				onClick={() => {
+					if (isCircuitBreakerBreached) return;
 					if (impactWarningActive && !impactAcknowledged) return;
 					if (requireConfirmation) {
 						setConfirmationOpen(true);
@@ -668,6 +714,7 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 				disabled={
 					!amountValid ||
 					isSubmitting ||
+					isCircuitBreakerBreached ||
 					(impactWarningActive && !impactAcknowledged) ||
 					(side === 'buy' && (previewLoading || previewError != null))
 				}
@@ -679,7 +726,7 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 					isLoading={isSubmitting}
 					loadingLabel="Submitting…"
 				>
-					{confirmLabel}
+					{isCircuitBreakerBreached ? 'Circuit Breaker Tripped' : confirmLabel}
 				</StableButtonContent>
 			</Button>
 		</>
@@ -699,6 +746,7 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 			minPriceStroops={slippageBounds?.minPriceStroops ?? null}
 			priceImpactPercent={priceImpactPercent}
 			onConfirm={async () => {
+				if (isCircuitBreakerBreached) return;
 				if (impactWarningActive && !impactAcknowledged) return;
 				await onConfirm(parsedAmount, pricePreview, slippageBounds);
 				setConfirmationOpen(false);
