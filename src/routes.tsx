@@ -20,6 +20,7 @@ import RevenueDistributionHistoryPage from './pages/RevenueDistributionHistoryPa
 import BundleManagementPage from './pages/BundleManagementPage';
 import AtomicSwapCreatePage from './pages/AtomicSwapCreatePage';
 import AtomicSwapProposalPage from './pages/AtomicSwapProposalPage';
+import StatusPage from './pages/StatusPage';
 import HolderLeaderboardPage from './pages/HolderLeaderboardPage';
 import BundlesPage from './pages/BundlesPage';
 import BundleDetailPage from './pages/BundleDetailPage';
@@ -152,6 +153,11 @@ export const routes = [
 			{
 				path: '/revenue-distribution',
 				element: <RevenueDistributionHistoryPage />,
+			},
+			{
+				// Public platform status page (#1051).
+				path: '/status',
+				element: <StatusPage />,
 			},
 			{
 				path: '*',
