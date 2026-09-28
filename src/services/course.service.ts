@@ -172,6 +172,10 @@ export interface KeyConfig {
 	spreadStroops?: number | null;
 	/** Spread expressed in basis points of the buy price, when reported. */
 	spreadBps?: number | null;
+	/** Maximum holding cap per wallet, when reported by the key config endpoint (#1015). */
+	holdingCap?: number | null;
+	/** Alias for holdingCap — maximum holding cap per wallet (#1015). */
+	maxHoldingCap?: number | null;
 	/** Key-level circuit breaker price impact threshold in basis points (#1034). */
 	circuitBreakerThresholdBps?: number | null;
 	/** Key-level circuit breaker price impact threshold in percent (#1034). */

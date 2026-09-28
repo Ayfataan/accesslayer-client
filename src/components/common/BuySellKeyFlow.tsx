@@ -28,7 +28,6 @@ import showToast from '@/utils/toast.util';
 import { getSignatureErrorMessage } from '@/utils/errorHandling.utils';
 import type { KeyConfig } from '@/services/course.service';
 import SpreadIndicator from '@/components/common/SpreadIndicator';
-import HoldingCapIndicator from '@/components/common/HoldingCapIndicator';
 import { cn } from '@/lib/utils';
 import { ArrowRight } from 'lucide-react';
 import { useSlippageTolerancePreference } from '@/hooks/useSlippageTolerancePreference';
@@ -186,30 +185,6 @@ export const BuySellKeyFlow: React.FC<BuySellKeyFlowProps> = ({
 		availableHoldings,
 		effectiveHoldingCap,
 	]);
-
-	const isCapLimitReached = useMemo(
-		() =>
-			side === 'buy' &&
-			effectiveHoldingCap != null &&
-			Number.isFinite(effectiveHoldingCap) &&
-			effectiveHoldingCap > 0 &&
-			availableHoldings >= effectiveHoldingCap,
-		[side, effectiveHoldingCap, availableHoldings]
-	);
-
-	const isCapBreached = useMemo(
-		() =>
-			side === 'buy' &&
-			effectiveHoldingCap != null &&
-			Number.isFinite(effectiveHoldingCap) &&
-			effectiveHoldingCap > 0 &&
-			Number.isFinite(parsedAmount) &&
-			parsedAmount > 0 &&
-			availableHoldings + parsedAmount > effectiveHoldingCap,
-		[side, effectiveHoldingCap, availableHoldings, parsedAmount]
-	);
-
-	const isCapExceeded = isCapLimitReached || isCapBreached;
 
 	const isValid = validationError === null;
 	const showError = touched && validationError !== null;

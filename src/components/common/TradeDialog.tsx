@@ -291,7 +291,6 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 		[side, effectiveHoldingCap, availableHoldings, parsedAmount]
 	);
 
-	const isCapExceeded = isCapLimitReached || isCapBreached;
 
 	const validationError = useMemo((): string | null => {
 		const normalized = amountText.trim();
@@ -412,7 +411,7 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 
 	const priceImpactPercent = useMemo(() => {
 		if (!amountValid || !Number.isFinite(parsedAmount)) return 0;
-		if (currentSupply == null || currentSupply <= 0) return 0;
+		if (currentSupply == null || currentSupply < 0) return 0;
 		return calculateTradePriceImpact({
 			side,
 			quantity: parsedAmount,
