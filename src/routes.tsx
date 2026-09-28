@@ -58,6 +58,10 @@ export const routes = [
 				element: <CreatorDetailPage />,
 			},
 			{
+				path: '/keys/:id',
+				element: <CreatorDetailPage />,
+			},
+			{
 				path: '/creator/:id/dashboard',
 				element: <CreatorDashboardPage />,
 			},

@@ -67,6 +67,7 @@ import type { KeyBuybackReceipt } from '@/hooks/useKeyBuyback';
 import { usePerformanceBond } from '@/hooks/usePerformanceBond';
 import PerformanceBondPanel from '@/components/common/PerformanceBondPanel';
 import WhitelistStatusBadge from '@/components/common/WhitelistStatusBadge';
+import ShareModal from '@/components/common/ShareModal';
 
 function CreatorDetailPageContent() {
 	usePurchaseConfetti();
@@ -78,6 +79,9 @@ function CreatorDetailPageContent() {
 	const [buybackModalOpen, setBuybackModalOpen] = useState(false);
 	const [recentSettlement, setRecentSettlement] =
 		useState<KeyBuybackReceipt | null>(null);
+	const [shareModalOpen, setShareModalOpen] = useState(false);
+	const [lastPurchasedAmount, setLastPurchasedAmount] =
+		useState<number | null>(null);
 	const {
 		data: creator,
 		isLoading,
@@ -227,6 +231,8 @@ function CreatorDetailPageContent() {
 				}`
 			);
 			setBuyDialogOpen(false);
+			setLastPurchasedAmount(amount);
+			setShareModalOpen(true);
 		} catch (error) {
 			showToast.error(getSignatureErrorMessage(error));
 		} finally {
@@ -489,6 +495,10 @@ function CreatorDetailPageContent() {
 						).replace(' XLM', '')}
 						userAddress={userAddress}
 						userHoldingsCount={holdingsCount}
+						onClick={() => {
+							setLastPurchasedAmount(holdingsCount);
+							setShareModalOpen(true);
+						}}
 					/>
 				</div>
 				{isTwapLoading ? (
@@ -668,6 +678,23 @@ function CreatorDetailPageContent() {
 						onConfirm={handleConfirmBuy}
 						isSubmitting={tradeSubmitting}
 						requireConfirmation={true}
+					/>
+				)}
+				{creator && (
+					<ShareModal
+						open={shareModalOpen}
+						onOpenChange={setShareModalOpen}
+						creatorId={creator.id}
+						creatorName={creator.title || creator.name || 'Creator'}
+						amount={
+							lastPurchasedAmount ??
+							(holdingsCount > 0 ? holdingsCount : null)
+						}
+						priceXlm={formatDisplayKeyPrice(
+							resolveCreatorKeyPriceStroops(creator)
+						).replace(' XLM', '')}
+						userAddress={userAddress}
+						onDismiss={() => setShareModalOpen(false)}
 					/>
 				)}
 			</div>

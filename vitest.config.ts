@@ -12,6 +12,7 @@ export default defineConfig({
 		maxWorkers: 1,
 		minWorkers: 1,
 		fileParallelism: false,
+		exclude: ['**/.kilo/**', '**/.kiro/**', '**/node_modules/**', '**/dist/**'],
 	},
 	resolve: {
 		alias: {
