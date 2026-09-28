@@ -152,4 +152,14 @@ export const queryKeys = {
 		all: () => ['status'] as const,
 		platform: () => ['status', 'platform'] as const,
 	},
+	creatorRevenue: {
+		all: () => ['creatorRevenue'] as const,
+		summary: (creatorId: string) =>
+			['creatorRevenue', creatorId, 'summary'] as const,
+		history: (creatorId: string, interval: string) =>
+			['creatorRevenue', creatorId, 'history', interval] as const,
+		withdrawals: (creatorId: string) =>
+			['creatorRevenue', creatorId, 'withdrawals'] as const,
+	},
 } as const;
+

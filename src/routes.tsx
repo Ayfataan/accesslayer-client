@@ -18,6 +18,7 @@ import ReferralDashboardPage from './pages/ReferralDashboardPage';
 import CreateCreatorKeyPage from './pages/CreateCreatorKeyPage';
 import RevenueDistributionHistoryPage from './pages/RevenueDistributionHistoryPage';
 import BundleManagementPage from './pages/BundleManagementPage';
+import CreatorRevenueDashboardPage from './pages/CreatorRevenueDashboardPage';
 import AtomicSwapCreatePage from './pages/AtomicSwapCreatePage';
 import AtomicSwapProposalPage from './pages/AtomicSwapProposalPage';
 import StatusPage from './pages/StatusPage';
@@ -101,6 +102,18 @@ export const routes = [
 			{
 				path: '/creators/:id/bundles',
 				element: <BundleManagementPage />,
+			},
+			{
+				path: '/creator/:id/revenue',
+				element: <CreatorRevenueDashboardPage />,
+			},
+			{
+				path: '/creators/:id/revenue',
+				element: <CreatorRevenueDashboardPage />,
+			},
+			{
+				path: '/creator/revenue',
+				element: <CreatorRevenueDashboardPage />,
 			},
 			{
 				path: '/notifications',
