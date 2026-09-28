@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCreatorDetail, usePriceHistory } from '@/hooks/useCreators';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { useCreatorProfileStaleIndicator } from '@/hooks/useCreatorProfileStaleIndicator';
@@ -12,6 +13,14 @@ import CreatorProfileStatRow from '@/components/common/CreatorProfileStatRow';
 import BondingCurveChart from '@/components/common/BondingCurveChart';
 import KeySimulationTool from '@/components/common/KeySimulationTool';
 import BuyCooldownCountdown from '@/components/common/BuyCooldownCountdown';
+import TradeCooldownButton from '@/components/common/TradeCooldownButton';
+import {
+	useTradeCooldownStatus,
+	invalidateTradeCooldownStatus,
+	resolveActiveTradeCooldown,
+} from '@/hooks/useTradeCooldownStatus';
+import type { ActiveTradeCooldown } from '@/utils/tradeCooldown.utils';
+import { isActiveCooldown } from '@/utils/tradeCooldown.utils';
 import KeyHolderList from '@/components/common/KeyHolderList';
 import HolderConcentrationChart from '@/components/common/HolderConcentrationChart';
 import StakingRewardsSection from '@/components/common/StakingRewardsSection';
@@ -179,6 +188,19 @@ function CreatorDetailPageContent() {
 	const [tradeSubmitting, setTradeSubmitting] = useState(false);
 	const tradeMutation = useTradeMutation(userAddress ?? 'demo-wallet');
 
+	// #998 — trade cooldown for this key: fetched on page load and refetched
+	// after each completed buy so the Buy button shows a live countdown and
+	// stays disabled until the cooldown expires. The user's own position-level
+	// `nextBuyAllowedAt` (#873) is the fallback when the dedicated endpoint
+	// has no data.
+	const queryClient = useQueryClient();
+	const { data: tradeCooldownStatus } = useTradeCooldownStatus(id || '');
+	const tradeCooldown: ActiveTradeCooldown | null = resolveActiveTradeCooldown(
+		tradeCooldownStatus,
+		nextBuyAllowedAt
+	);
+	const isTradeCooldownActive = isActiveCooldown(tradeCooldown);
+
 	const handleConfirmBuy = async (
 		amount: number,
 		_pricePreview?: unknown,
@@ -208,6 +230,9 @@ function CreatorDetailPageContent() {
 		} catch (error) {
 			showToast.error(getSignatureErrorMessage(error));
 		} finally {
+			// #998 — refetch the cooldown after the settled trade so the Buy
+			// button reflects the freshly committed cooldown window.
+			if (id) invalidateTradeCooldownStatus(queryClient, id);
 			setTradeSubmitting(false);
 		}
 	};
@@ -429,22 +454,29 @@ function CreatorDetailPageContent() {
 							isLoading={isOracleLoading}
 						/>
 					</div>
-					<Button
-						disabled={isKeyDeprecated(creator) || isLockedOut}
-						data-testid="key-detail-buy-button"
-						onClick={() => setBuyDialogOpen(true)}
-						variant={isKeyDeprecated(creator) || isLockedOut ? 'outline' : 'default'}
-						className="rounded-xl font-bold"
-					>
-						{isKeyDeprecated(creator)
-							? 'Buy Disabled (Deprecated)'
-							: isLockedOut
-							? 'Buy Locked (Whitelist Only)'
-							: 'Buy Key'}
-					</Button>
+					{isKeyDeprecated(creator) ? (
+						<Button
+							disabled
+							data-testid="key-detail-buy-button"
+							variant="outline"
+							className="rounded-xl font-bold"
+						>
+							Buy Disabled (Deprecated)
+						</Button>
+					) : (
+						<TradeCooldownButton
+							cooldown={tradeCooldown}
+							label="Buy Key"
+							className="rounded-xl font-bold"
+							onClick={() => setBuyDialogOpen(true)}
+							buttonProps={{
+								'data-testid': 'key-detail-buy-button',
+							}}
+						/>
+					)}
 				</div>
 				{/* Buy Cooldown Countdown (only meaningful for authenticated users) */}
-				{userAddress && (
+				{userAddress && !isTradeCooldownActive && (
 					<BuyCooldownCountdown nextBuyAllowedAt={nextBuyAllowedAt} />
 				)}
 				{/* Share to X Button (only visible for authenticated holders) */}

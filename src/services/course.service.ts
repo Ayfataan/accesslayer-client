@@ -88,6 +88,18 @@ export interface Course {
 	 */
 	nextBuyAllowedAt?: number | string | null;
 	/**
+	 * Cooldown policy for this key in seconds (#998): how long after a
+	 * trade the next trade of the same key is blocked. Drives the tooltip
+	 * copy on the disabled trade buttons. Absent when unknown.
+	 */
+	tradeCooldownSeconds?: number | null;
+	/**
+	 * Cooldown policy for this key expressed in Stellar ledgers (~5 seconds
+	 * per ledger), as configured via the contract's `set_buy_cooldown`.
+	 * Preferred over `tradeCooldownSeconds` when both are present.
+	 */
+	tradeCooldownLedgers?: number | null;
+	/**
 	 * Whether this key has been marked deprecated (#871) — e.g. the creator
 	 * left the platform or the key was superseded. Deprecated keys can no
 	 * longer be bought/sold; holders can redeem their position instead.
@@ -130,6 +142,28 @@ export interface GraduatedCurveConfig {
  * spread between the current buy (ask) and sell (bid) price. All prices are
  * in stroops (1 XLM = 10,000,000 stroops).
  */
+/**
+ * Trade cooldown status for a creator key (#998).
+ *
+ * Returned by `GET /keys/:keyId/trade-cooldown` and consumed by the disabled
+ * buy/sell buttons' countdown. `nextBuyAllowedAt` is the absolute timestamp
+ * after which the authenticated wallet may trade the key again; it is `null`
+ * when no cooldown is in effect for the caller.
+ */
+export interface TradeCooldownInfo {
+	/** Key this cooldown status belongs to, when the backend echoes it back. */
+	keyId?: string;
+	/**
+	 * Absolute timestamp (seconds epoch, ms epoch, or ISO string) after which
+	 * trading is allowed again. `null` means no cooldown is in effect.
+	 */
+	nextBuyAllowedAt?: number | string | null;
+	/** Cooldown policy length in seconds, when reported explicitly. */
+	cooldownDurationSeconds?: number | null;
+	/** Cooldown policy length in Stellar ledgers (~5s each), when reported. */
+	cooldownDurationLedgers?: number | null;
+}
+
 export interface KeyConfig {
 	/** Key this config belongs to, when the backend echoes it back. */
 	keyId?: string;
@@ -682,6 +716,23 @@ class CourseService extends BaseApiService {
 			);
 			return response.data.data;
 		} catch (error) {
+			throw this.handleError(error);
+		}
+	}
+
+	// Get trade cooldown status - GET /keys/:keyId/trade-cooldown (#998)
+	async getTradeCooldownStatus(keyId: string): Promise<TradeCooldownInfo | null> {
+		try {
+			const response = await this.api.get<APIResponse<TradeCooldownInfo>>(
+				`/keys/${keyId}/trade-cooldown`
+			);
+			return response.data.data;
+		} catch (error: unknown) {
+			if (error instanceof ApiError && error.status === 404) {
+				// No cooldown concept deployed for this key yet — treat as
+				// "no cooldown data" so buttons stay enabled.
+				return null;
+			}
 			throw this.handleError(error);
 		}
 	}
