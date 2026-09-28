@@ -14,11 +14,11 @@ const BundlesPage: React.FC = () => {
     const { data: bundles, isLoading, isError } = useMarketplaceBundles();
 
     return (
-        <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
-            <SkipToContent />
+        <main id="main-content" tabIndex={-1} className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
+            <SkipToContent targetId="main-content" />
             <SectionHeading
                 title="Creator bundles"
-                subtitle="Buy a discounted set of keys in one transaction."
+                supportingText="Buy a discounted set of keys in one transaction."
             />
 
             {isLoading && <CreatorCardGridSkeleton count={6} />}

@@ -151,7 +151,7 @@ const BundleDetailPanel: React.FC<BundleDetailPanelProps> = ({
                     Bundle expired
                 </Button>
             ) : isBuying ? (
-                <AsyncButton isLoading loadingText="Purchasing…">
+                <AsyncButton isPending pendingText="Purchasing…">
                     Buy bundle
                 </AsyncButton>
             ) : (
