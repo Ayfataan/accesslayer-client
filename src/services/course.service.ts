@@ -36,6 +36,20 @@ export interface Course {
 	holders?: number;
 	/** XLM currently held in the staking reward pool for this key. */
 	stakingPoolBalance?: number;
+	/**
+	 * Deprecation record for this key (issue #996), when deprecated.
+	 * Shape matches DeprecationBanner's KeyDeprecation props.
+	 */
+	deprecation?: {
+		/** ISO 8601 date the key was (or will be) deprecated. */
+		deprecatedAt: string;
+		/** Human-readable reason the key was deprecated. */
+		reason: string;
+		/** Successor key's creator id, when one has been designated. */
+		successorId?: string;
+		/** Display name of the successor key, for the CTA label. */
+		successorName?: string;
+	};
 	/** Number of keys staked across all holders. */
 	totalStaked?: number;
 	/** Protocol fees that flowed into the staking pool over the last month. */
