@@ -664,6 +664,10 @@ function CreatorDetailPageContent() {
 						launchPenaltyBps={creator.launchPenaltyBps}
 						keyConfig={keyConfig}
 						isKeyConfigLoading={isKeyConfigLoading}
+						circuitBreakerThresholdPercent={
+							creator.circuitBreakerThresholdPercent
+						}
+						circuitBreakerThresholdBps={creator.circuitBreakerThresholdBps}
 						onOpenChange={setBuyDialogOpen}
 						onConfirm={handleConfirmBuy}
 						isSubmitting={tradeSubmitting}

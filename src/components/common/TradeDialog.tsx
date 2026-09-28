@@ -56,6 +56,8 @@ import type { KeyConfig } from '@/services/course.service';
 import SpreadIndicator from '@/components/common/SpreadIndicator';
 import HoldingCapIndicator from '@/components/common/HoldingCapIndicator';
 import { useSlippageTolerancePreference } from '@/hooks/useSlippageTolerancePreference';
+import CircuitBreakerStatusIndicator from '@/components/common/CircuitBreakerStatusIndicator';
+import { evaluateCircuitBreakerStatus } from '@/utils/circuitBreaker.utils';
 
 export type TradeSide = 'buy' | 'sell';
 
@@ -87,6 +89,10 @@ export interface TradeDialogProps {
 	keyConfig?: KeyConfig | null;
 	/** Whether the key config query is still loading. */
 	isKeyConfigLoading?: boolean;
+	/** Key-level circuit breaker threshold in percent (defaults to keyConfig or 15%) (#1034). */
+	circuitBreakerThresholdPercent?: number | null;
+	/** Key-level circuit breaker threshold in basis points (defaults to keyConfig or 1500) (#1034). */
+	circuitBreakerThresholdBps?: number | null;
 	/** Whether to display the confirmation modal step before submission (#919). Defaults to false. */
 	requireConfirmation?: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -118,6 +124,8 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 	maxHoldingCap = null,
 	keyConfig,
 	isKeyConfigLoading = false,
+	circuitBreakerThresholdPercent,
+	circuitBreakerThresholdBps,
 	requireConfirmation = false,
 	onOpenChange,
 	onConfirm,
@@ -182,7 +190,7 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 			const activeEl = document.activeElement;
 			if (
 				!(activeEl instanceof HTMLInputElement) ||
-				activeEl.getAttribute('data-testid') !== 'trade-dialog-amount'
+				activeEl.dataset.testid !== 'trade-dialog-amount'
 			) {
 				return;
 			}
@@ -236,7 +244,6 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 				const clamped = clampBuyQuantity(next.toString());
 				setAmountText(clamped.value.toString());
 				setTouched(true);
-				return;
 			}
 		};
 
@@ -257,7 +264,7 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 
 	const parsedAmount = useMemo(() => {
 		const normalized = amountText.trim();
-		if (!normalized) return NaN;
+		if (!normalized) return Number.NaN;
 		return Number(normalized);
 	}, [amountText]);
 
@@ -283,7 +290,6 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 		[side, effectiveHoldingCap, availableHoldings, parsedAmount]
 	);
 
-	const isCapExceeded = isCapLimitReached || isCapBreached;
 
 	const validationError = useMemo((): string | null => {
 		const normalized = amountText.trim();
@@ -404,13 +410,42 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 
 	const priceImpactPercent = useMemo(() => {
 		if (!amountValid || !Number.isFinite(parsedAmount)) return 0;
-		if (currentSupply == null || currentSupply <= 0) return 0;
+		if (currentSupply == null || currentSupply < 0) return 0;
 		return calculateTradePriceImpact({
 			side,
 			quantity: parsedAmount,
 			currentSupply,
 		});
 	}, [amountValid, parsedAmount, side, currentSupply]);
+
+	const effectiveCircuitBreakerThresholdPercent =
+		circuitBreakerThresholdPercent ??
+		keyConfig?.circuitBreakerThresholdPercent ??
+		null;
+	const effectiveCircuitBreakerThresholdBps =
+		circuitBreakerThresholdBps ??
+		keyConfig?.circuitBreakerThresholdBps ??
+		null;
+
+	const circuitBreakerStatus = useMemo(() => {
+		if (side !== 'buy' || !amountValid) return null;
+		return evaluateCircuitBreakerStatus({
+			impactPercent: priceImpactPercent,
+			thresholdPercent: effectiveCircuitBreakerThresholdPercent,
+			thresholdBps: effectiveCircuitBreakerThresholdBps,
+		});
+	}, [
+		side,
+		amountValid,
+		priceImpactPercent,
+		effectiveCircuitBreakerThresholdPercent,
+		effectiveCircuitBreakerThresholdBps,
+	]);
+
+	const isCircuitBreakerBreached = Boolean(
+		side === 'buy' && circuitBreakerStatus?.isBreached
+	);
+
 	const impactWarningActive =
 		amountValid &&
 		isHighPriceImpact(priceImpactPercent, slippageTolerancePercent);
@@ -423,10 +458,7 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 		if (side === 'sell') {
 			setAmountText(String(Math.max(0, availableHoldings)));
 		} else {
-			let maxVal =
-				maxBuyQuantity != null
-					? maxBuyQuantity
-					: BUY_QUANTITY_BOUNDS.MAX_QTY;
+			let maxVal = maxBuyQuantity ?? BUY_QUANTITY_BOUNDS.MAX_QTY;
 			if (
 				effectiveHoldingCap != null &&
 				Number.isFinite(effectiveHoldingCap) &&
@@ -649,6 +681,14 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 						)}
 				</div>
 				{side === 'buy' && (
+					<CircuitBreakerStatusIndicator
+						impactPercent={priceImpactPercent}
+						thresholdPercent={effectiveCircuitBreakerThresholdPercent}
+						thresholdBps={effectiveCircuitBreakerThresholdBps}
+						isValid={amountValid}
+					/>
+				)}
+				{side === 'buy' && (
 					<NetworkFeeHint
 						variant="text"
 						fee={estimatedNetworkFee}
@@ -751,7 +791,7 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 			<Button
 				type="button"
 				onClick={() => {
-					if (isCapExceeded) return;
+					if (isCircuitBreakerBreached) return;
 					if (impactWarningActive && !impactAcknowledged) return;
 					if (requireConfirmation) {
 						setConfirmationOpen(true);
@@ -762,7 +802,7 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 				disabled={
 					!amountValid ||
 					isSubmitting ||
-					isCapExceeded ||
+					isCircuitBreakerBreached ||
 					(impactWarningActive && !impactAcknowledged) ||
 					(side === 'buy' && (previewLoading || previewError != null))
 				}
@@ -774,7 +814,7 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 					isLoading={isSubmitting}
 					loadingLabel="Submitting…"
 				>
-					{confirmLabel}
+					{isCircuitBreakerBreached ? 'Circuit Breaker Tripped' : confirmLabel}
 				</StableButtonContent>
 			</Button>
 		</>
@@ -794,6 +834,7 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 			minPriceStroops={slippageBounds?.minPriceStroops ?? null}
 			priceImpactPercent={priceImpactPercent}
 			onConfirm={async () => {
+				if (isCircuitBreakerBreached) return;
 				if (impactWarningActive && !impactAcknowledged) return;
 				await onConfirm(parsedAmount, pricePreview, slippageBounds);
 				setConfirmationOpen(false);
@@ -912,13 +953,13 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 							<kbd className="rounded border border-white/10 bg-white/[0.04] px-1 py-0.5 font-mono text-[10px]">
 								Enter
 							</kbd>
-							confirm
+							<span>confirm</span>
 						</span>
 						<span className="flex items-center gap-1">
 							<kbd className="rounded border border-white/10 bg-white/[0.04] px-1 py-0.5 font-mono text-[10px]">
 								Esc
 							</kbd>
-							close
+							<span>close</span>
 						</span>
 						<span className="flex items-center gap-1">
 							<kbd className="rounded border border-white/10 bg-white/[0.04] px-1 py-0.5 font-mono text-[10px]">
@@ -927,7 +968,7 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 							<kbd className="rounded border border-white/10 bg-white/[0.04] px-1 py-0.5 font-mono text-[10px]">
 								-
 							</kbd>
-							adjust
+							<span>adjust</span>
 						</span>
 					</div>
 				</DialogContent>
