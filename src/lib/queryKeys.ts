@@ -54,6 +54,8 @@ export const queryKeys = {
 			['creators', creatorId, 'trade-cooldown'] as const,
 		whitelist: (creatorId: string) =>
 			['creators', creatorId, 'whitelist'] as const,
+		publicProfile: (address: string) =>
+			['creators', 'public-profile', address] as const,
 		keyDeployment: (keyId: string) =>
 			['creators', 'deployment', keyId] as const,
 		discovery: {
