@@ -148,6 +148,10 @@ export const queryKeys = {
 				['bundles', 'marketplace', 'detail', bundleId] as const,
 		},
 	},
+	status: {
+		all: () => ['status'] as const,
+		platform: () => ['status', 'platform'] as const,
+	},
 	creatorRevenue: {
 		all: () => ['creatorRevenue'] as const,
 		summary: (creatorId: string) =>
