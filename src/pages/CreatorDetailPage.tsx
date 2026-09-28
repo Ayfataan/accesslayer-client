@@ -385,7 +385,8 @@ function CreatorDetailPageContent() {
 					<WatchlistButton
 						creator={creator}
 						labelName={creator.title}
-						className="mt-3 shrink-0"
+						// ≥44px tap target on mobile (WCAG 2.5.5); compact on sm+.
+						className="mt-3 size-11 shrink-0 sm:size-9"
 					/>
 				</div>
 
@@ -421,8 +422,13 @@ function CreatorDetailPageContent() {
 						<DeprecationNotice reason={creator.deprecationReason} />
 					</div>
 				)}
-				<div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4">
-					<div>
+				{/*
+				 * Key Purchase CTA row (#1055): stacks vertically on mobile so the
+				 * buy action stays reachable and full-width with a 44px tap target;
+				 * desktop keeps the horizontal layout.
+				 */}
+				<div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+					<div className="min-w-0">
 						<div className="flex items-center gap-2">
 							<p className="text-xs font-semibold uppercase tracking-wider text-white/55">
 								Key Purchase
@@ -459,7 +465,8 @@ function CreatorDetailPageContent() {
 							disabled
 							data-testid="key-detail-buy-button"
 							variant="outline"
-							className="rounded-xl font-bold"
+							// ≥44px tap target on mobile; full-width, compact on sm+ (#1055).
+							className="min-h-11 w-full rounded-xl font-bold sm:h-10 sm:min-h-0 sm:w-auto"
 						>
 							Buy Disabled (Deprecated)
 						</Button>
@@ -467,7 +474,8 @@ function CreatorDetailPageContent() {
 						<TradeCooldownButton
 							cooldown={tradeCooldown}
 							label="Buy Key"
-							className="rounded-xl font-bold"
+							// ≥44px tap target on mobile; full-width, compact on sm+ (#1055).
+							className="min-h-11 w-full rounded-xl font-bold sm:h-10 sm:min-h-0 sm:w-auto"
 							onClick={() => setBuyDialogOpen(true)}
 							buttonProps={{
 								'data-testid': 'key-detail-buy-button',
@@ -506,7 +514,7 @@ function CreatorDetailPageContent() {
 						className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4"
 						data-testid="twap-price"
 					>
-						<div className="flex items-center justify-between gap-4">
+						<div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
 							<div>
 								<div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white/55">
 									<span
@@ -524,7 +532,7 @@ function CreatorDetailPageContent() {
 										<button
 											type="button"
 											aria-label="What is 24 hour TWAP?"
-											className="text-white/50"
+											className="-m-1 p-1 text-white/50"
 										>
 											ⓘ
 										</button>
@@ -538,8 +546,8 @@ function CreatorDetailPageContent() {
 								<span
 									className={
 										twapDelta < 0
-											? 'text-sm font-semibold text-emerald-400'
-											: 'text-sm font-semibold text-rose-400'
+											? 'text-sm font-semibold tabular-nums text-emerald-400'
+											: 'text-sm font-semibold tabular-nums text-rose-400'
 									}
 								>
 									{twapDelta < 0 ? '▼' : '▲'}{' '}
@@ -591,7 +599,7 @@ function CreatorDetailPageContent() {
 				</div>
 				{/* Fee Structure */}
 				<div className="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 shadow-2xl backdrop-blur-md md:p-8">
-					<div className="flex items-center justify-between gap-4 mb-6">
+					<div className="flex flex-wrap items-center justify-between gap-3 mb-6">
 						<h2 className="font-grotesque text-xl font-black tracking-tight text-white">
 							Fee Structure
 						</h2>
