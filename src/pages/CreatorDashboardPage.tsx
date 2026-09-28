@@ -37,6 +37,8 @@ import {
 import { formatNumber } from '@/utils/numberFormat.utils';
 
 import { GraduatedCurveMilestoneChart } from '@/components/common/GraduatedCurveMilestoneChart';
+import RoyaltyEarningsCard from '@/components/creator/RoyaltyEarningsCard';
+import FundRewardPoolForm from '@/components/creator/FundRewardPoolForm';
 
 const TABS = [
 	{ label: 'Overview', value: 'overview' },
@@ -229,6 +231,13 @@ export default function CreatorDashboardPage() {
 							keyId={id}
 							currentSupply={creator.creatorShareSupply ?? 100}
 						/>
+
+						{/* Royalty earnings tracker (#987) and the staking reward
+						    pool funding form (#1023) are creator-only by
+						    construction: both components render null for any
+						    other wallet. */}
+						{isKeyCreator && <RoyaltyEarningsCard keyId={id} />}
+						{isKeyCreator && <FundRewardPoolForm keyId={id} />}
 					</div>
 				)}
 
