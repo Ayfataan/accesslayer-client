@@ -4,7 +4,6 @@ import {
   type RoyaltyClaim,
   type RoyaltyEarningsSummary,
 } from '@/services/royalty.service';
-import { queryKeys } from '@/lib/queryKeys';
 import showToast from '@/utils/toast.util';
 import { getSignatureErrorMessage } from '@/utils/errorHandling.utils';
 
