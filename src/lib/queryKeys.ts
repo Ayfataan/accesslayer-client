@@ -54,6 +54,8 @@ export const queryKeys = {
 			['creators', creatorId, 'trade-cooldown'] as const,
 		whitelist: (creatorId: string) =>
 			['creators', creatorId, 'whitelist'] as const,
+		publicProfile: (address: string) =>
+			['creators', 'public-profile', address] as const,
 		keyDeployment: (keyId: string) =>
 			['creators', 'deployment', keyId] as const,
 		discovery: {
@@ -139,6 +141,12 @@ export const queryKeys = {
 	bundles: {
 		all: (creatorId: string) => ['bundles', creatorId] as const,
 		list: (creatorId: string) => ['bundles', creatorId, 'list'] as const,
+		marketplace: {
+			all: () => ['bundles', 'marketplace'] as const,
+			list: () => ['bundles', 'marketplace', 'list'] as const,
+			detail: (bundleId: string) =>
+				['bundles', 'marketplace', 'detail', bundleId] as const,
+		},
 	},
 	status: {
 		all: () => ['status'] as const,

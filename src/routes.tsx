@@ -5,6 +5,7 @@ import MarketplacePage from './pages/MarketplacePage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import CreatorDetailPage from './pages/CreatorDetailPage';
 import CreatorDashboardPage from './pages/CreatorDashboardPage';
+import CreatorPublicProfilePage from './pages/CreatorPublicProfilePage';
 import NotificationsPage from './pages/NotificationsPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import DiscoveryPage from './pages/DiscoveryPage';
@@ -20,6 +21,8 @@ import BundleManagementPage from './pages/BundleManagementPage';
 import AtomicSwapCreatePage from './pages/AtomicSwapCreatePage';
 import AtomicSwapProposalPage from './pages/AtomicSwapProposalPage';
 import StatusPage from './pages/StatusPage';
+import BundlesPage from './pages/BundlesPage';
+import BundleDetailPage from './pages/BundleDetailPage';
 
 export const routes = [
 	{
@@ -37,6 +40,14 @@ export const routes = [
 			{
 				path: '/marketplace',
 				element: <MarketplacePage />,
+			},
+			{
+				path: '/bundles',
+				element: <BundlesPage />,
+			},
+			{
+				path: '/bundles/:id',
+				element: <BundleDetailPage />,
 			},
 			{
 				path: '/discovery',
@@ -57,6 +68,14 @@ export const routes = [
 			{
 				path: '/creators/:id',
 				element: <CreatorDetailPage />,
+			},
+			{
+				path: '/creator/:address/profile',
+				element: <CreatorPublicProfilePage />,
+			},
+			{
+				path: '/creators/:address/profile',
+				element: <CreatorPublicProfilePage />,
 			},
 			{
 				path: '/creator/:id/dashboard',
