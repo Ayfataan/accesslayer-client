@@ -141,7 +141,6 @@ export default function HolderLeaderboardPage() {
 	const profile = useProfileStore(state => state.profile);
 	const userAddress = profile?.id?.toLowerCase();
 	
-	const [lastRefreshTime, setLastRefreshTime] = useState<Date>(new Date());
 	const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
 
 	const {
@@ -169,7 +168,6 @@ export default function HolderLeaderboardPage() {
 			try {
 				await queryClient.invalidateQueries({ queryKey: ['creators', 'holders', id] });
 				await queryClient.invalidateQueries({ queryKey: ['creator', id] });
-				setLastRefreshTime(new Date());
 			} finally {
 				setIsAutoRefreshing(false);
 			}
