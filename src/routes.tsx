@@ -20,6 +20,7 @@ import RevenueDistributionHistoryPage from './pages/RevenueDistributionHistoryPa
 import BundleManagementPage from './pages/BundleManagementPage';
 import AtomicSwapCreatePage from './pages/AtomicSwapCreatePage';
 import AtomicSwapProposalPage from './pages/AtomicSwapProposalPage';
+import HolderLeaderboardPage from './pages/HolderLeaderboardPage';
 import BundlesPage from './pages/BundlesPage';
 import BundleDetailPage from './pages/BundleDetailPage';
 
@@ -67,6 +68,14 @@ export const routes = [
 			{
 				path: '/creators/:id',
 				element: <CreatorDetailPage />,
+			},
+			{
+				path: '/creator/:id/leaderboard',
+				element: <HolderLeaderboardPage />,
+			},
+			{
+				path: '/creators/:id/leaderboard',
+				element: <HolderLeaderboardPage />,
 			},
 			{
 				path: '/creator/:address/profile',
