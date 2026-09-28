@@ -23,18 +23,19 @@ export const queryKeys = {
 		infiniteList: (params?: Omit<GetCoursesParams, 'page'>) =>
 			['creators', 'infiniteList', params ?? null] as const,
 		detail: (id: string) => ['creators', 'detail', id] as const,
+		priceHistory: (creatorId: string, interval: string) =>
+			['creators', creatorId, 'priceHistory', interval] as const,
 		holders: (creatorId: string) =>
 			['creators', creatorId, 'holders'] as const,
 		activity: (creatorId: string) =>
 			['creators', creatorId, 'activity'] as const,
 		twap: (creatorId: string) =>
 			['creators', creatorId, 'twap', '24h'] as const,
-<<<<<<< HEAD
 		stats: (creatorId: string) => ['creators', creatorId, 'stats'] as const,
-=======
 		auctionBids: (creatorId: string) =>
 			['creators', creatorId, 'auction-bids'] as const,
->>>>>>> bc45f6e (feat: add pre-launch auction phase UI for creator key listings (#924))
+		uniqueTraders: (creatorId: string) =>
+			['creators', creatorId, 'unique-traders'] as const,
 		curveConfig: (creatorId: string) =>
 			['creators', creatorId, 'curve-config'] as const,
 		curveMigrations: (creatorId: string) =>
@@ -51,6 +52,10 @@ export const queryKeys = {
 			['creators', creatorId, 'oracle-price'] as const,
 		performanceBond: (creatorId: string) =>
 			['creators', creatorId, 'performance-bond'] as const,
+		tradeCooldown: (creatorId: string) =>
+			['creators', creatorId, 'trade-cooldown'] as const,
+		whitelist: (creatorId: string) =>
+			['creators', creatorId, 'whitelist'] as const,
 		keyDeployment: (keyId: string) =>
 			['creators', 'deployment', keyId] as const,
 		discovery: {
@@ -66,6 +71,13 @@ export const queryKeys = {
 			['wallet', address, 'tradeHistory'] as const,
 		stakingPositions: (address: string) =>
 			['wallet', address, 'stakingPositions'] as const,
+		xlmBalance: (address: string) =>
+			['wallet', address, 'xlmBalance'] as const,
+	},
+	lp: {
+		all: () => ['lp'] as const,
+		positions: (wallet: string) => ['lp', 'positions', wallet] as const,
+		pool: (keyId: string) => ['lp', 'pool', keyId] as const,
 	},
 	notifications: {
 		all: () => ['notifications'] as const,
@@ -79,12 +91,14 @@ export const queryKeys = {
 		all: () => ['leaderboard'] as const,
 		volume: (window: VolumeWindow = '24h') =>
 			['leaderboard', 'volume', window] as const,
-                ratings: () => ['leaderboard', 'ratings'] as const,
+		ratings: () => ['leaderboard', 'ratings'] as const,
 	},
 	admin: {
 		oracleCallers: () => ['admin', 'oracle', 'callers'] as const,
 		multiSigPending: () => ['admin', 'multisig', 'pending'] as const,
 		multiSigHistory: () => ['admin', 'multisig', 'history'] as const,
+		aclWhitelist: () => ['admin', 'acl', 'whitelist'] as const,
+		aclHistory: () => ['admin', 'acl', 'history'] as const,
 	},
 	governance: {
 		all: () => ['governance'] as const,
@@ -121,7 +135,8 @@ export const queryKeys = {
 			['atomic-swap', 'proposal', proposalId] as const,
 		proposals: (address: string, status?: string) =>
 			['atomic-swap', 'proposals', address, status ?? 'all'] as const,
-		history: (address: string) => ['atomic-swap', 'history', address] as const,
+		history: (address: string) =>
+			['atomic-swap', 'history', address] as const,
 	},
 	bundles: {
 		all: (creatorId: string) => ['bundles', creatorId] as const,
