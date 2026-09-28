@@ -5,6 +5,7 @@ import MarketplacePage from './pages/MarketplacePage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import CreatorDetailPage from './pages/CreatorDetailPage';
 import CreatorDashboardPage from './pages/CreatorDashboardPage';
+import CreatorPublicProfilePage from './pages/CreatorPublicProfilePage';
 import NotificationsPage from './pages/NotificationsPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import DiscoveryPage from './pages/DiscoveryPage';
@@ -66,6 +67,14 @@ export const routes = [
 			{
 				path: '/creators/:id',
 				element: <CreatorDetailPage />,
+			},
+			{
+				path: '/creator/:address/profile',
+				element: <CreatorPublicProfilePage />,
+			},
+			{
+				path: '/creators/:address/profile',
+				element: <CreatorPublicProfilePage />,
 			},
 			{
 				path: '/creator/:id/dashboard',

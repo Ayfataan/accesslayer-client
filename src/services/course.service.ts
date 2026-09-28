@@ -1,5 +1,6 @@
 // src/services/course.service.ts
 import { BaseApiService, ApiError, type APIResponse } from './api.service';
+import type { CreatorSocialLinks } from '@/types/creatorProfile';
 import { cacheManager } from '@/utils/cache.utils';
 
 export interface Course {
@@ -17,8 +18,12 @@ export interface Course {
 	category: string;
 	level: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
 	socialHandle?: string;
+	/** Optional creator-published social links (#1054). */
+	socialLinks?: CreatorSocialLinks | null;
 	isVerified?: boolean;
 	volume24h?: number;
+	/** Cumulative all-time traded volume in stroops, when the API reports it. */
+	totalVolume?: number | null;
 	change24h?: number;
 	joinedAt?: string;
 	/** ISO timestamp for when the creator key was created. */
