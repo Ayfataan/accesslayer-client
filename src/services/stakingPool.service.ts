@@ -56,7 +56,7 @@ class StakingPoolService extends BaseApiService {
       const response = await this.api.post<
         APIResponse<{ transactionHash: string; pool: StakingRewardPool }>
       >(`/keys/${keyId}/staking-pool/fund`, { wallet, ...input });
-      cacheManager.remove(cacheKey(keyId));
+      cacheManager.invalidate(cacheKey(keyId));
       return response.data.data;
     } catch (error) {
       throw this.handleError(error);

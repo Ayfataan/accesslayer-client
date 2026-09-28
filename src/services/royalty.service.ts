@@ -69,7 +69,7 @@ class RoyaltyService extends BaseApiService {
         { wallet }
       );
       // A successful claim changes every number on the card; drop the cache.
-      cacheManager.remove(cacheKey(keyId, wallet));
+      cacheManager.invalidate(cacheKey(keyId, wallet));
       return response.data.data;
     } catch (error) {
       throw this.handleError(error);
