@@ -139,5 +139,11 @@ export const queryKeys = {
 	bundles: {
 		all: (creatorId: string) => ['bundles', creatorId] as const,
 		list: (creatorId: string) => ['bundles', creatorId, 'list'] as const,
+		marketplace: {
+			all: () => ['bundles', 'marketplace'] as const,
+			list: () => ['bundles', 'marketplace', 'list'] as const,
+			detail: (bundleId: string) =>
+				['bundles', 'marketplace', 'detail', bundleId] as const,
+		},
 	},
 } as const;

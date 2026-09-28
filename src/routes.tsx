@@ -19,6 +19,8 @@ import RevenueDistributionHistoryPage from './pages/RevenueDistributionHistoryPa
 import BundleManagementPage from './pages/BundleManagementPage';
 import AtomicSwapCreatePage from './pages/AtomicSwapCreatePage';
 import AtomicSwapProposalPage from './pages/AtomicSwapProposalPage';
+import BundlesPage from './pages/BundlesPage';
+import BundleDetailPage from './pages/BundleDetailPage';
 
 export const routes = [
 	{
@@ -36,6 +38,14 @@ export const routes = [
 			{
 				path: '/marketplace',
 				element: <MarketplacePage />,
+			},
+			{
+				path: '/bundles',
+				element: <BundlesPage />,
+			},
+			{
+				path: '/bundles/:id',
+				element: <BundleDetailPage />,
 			},
 			{
 				path: '/discovery',
