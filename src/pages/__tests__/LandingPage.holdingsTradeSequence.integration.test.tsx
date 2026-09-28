@@ -25,6 +25,7 @@
 import type { ComponentProps, ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LandingPage from '@/pages/LandingPage';
 import { courseService, type Course } from '@/services/course.service';
@@ -212,9 +213,11 @@ describe('LandingPage holdings entry count after buy/sell sequence', () => {
 			mockGetCourses.mockResolvedValue(twoCreators);
 
 			render(
-				<MemoryRouter>
-					<LandingPage />
-				</MemoryRouter>
+				<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+					<MemoryRouter>
+						<LandingPage />
+					</MemoryRouter>
+				</QueryClientProvider>
 			);
 
 			await waitFor(() => expect(mockGetCourses).toHaveBeenCalledTimes(1));

@@ -10,6 +10,7 @@
 import type { ComponentProps, ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LandingPage from '@/pages/LandingPage';
 import {
@@ -159,12 +160,18 @@ describe('LandingPage search and sort coexistence integration (#594)', () => {
 		});
 	});
 
+	function makeQueryClient() {
+		return new QueryClient({ defaultOptions: { queries: { retry: false } } });
+	}
+
 	it('coexists search and sort params in URL and passes both in single API request', async () => {
 		render(
-			<MemoryRouter>
-				<LandingPage />
-				<RouteLocationTracker />
-			</MemoryRouter>
+			<QueryClientProvider client={makeQueryClient()}>
+				<MemoryRouter>
+					<LandingPage />
+					<RouteLocationTracker />
+				</MemoryRouter>
+			</QueryClientProvider>
 		);
 
 		// Initial load fetch

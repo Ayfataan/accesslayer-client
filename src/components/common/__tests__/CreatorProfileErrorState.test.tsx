@@ -48,4 +48,12 @@ describe('CreatorProfileErrorState (#573)', () => {
 		const retryButton = screen.getByRole('button', { name: /retrying\.\.\./i });
 		expect(retryButton).toBeDisabled();
 	});
+
+	it('renders without error when onRetry is not provided', () => {
+		render(<CreatorProfileErrorState />);
+
+		expect(screen.getByRole('alert')).toBeInTheDocument();
+		expect(screen.getByText('Unable to load this creator profile')).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+	});
 });

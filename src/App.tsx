@@ -3,13 +3,15 @@ import { useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { createBrowserRouter, RouterProvider } from 'react-router';
 import AppErrorBoundary from './components/common/AppErrorBoundary';
-import { useNavigationTiming } from './hooks/useNavigationTiming';
+import OfflineBanner from './components/common/OfflineBanner';
+import SessionExpiryWatcher from './components/common/SessionExpiryWatcher';
 import { routes } from './routes';
+import { useRouteChangeLogging } from './hooks/useRouteChangeLogging';
 
 const router = createBrowserRouter(routes);
 
 function App() {
-	useNavigationTiming();
+	useRouteChangeLogging();
 
 	useEffect(() => {
 		const lenis = new Lenis({
@@ -26,6 +28,7 @@ function App() {
 
 	return (
 		<AppErrorBoundary>
+			<OfflineBanner />
 			<Toaster
 				toastOptions={{
 					ariaProps: {
@@ -34,6 +37,7 @@ function App() {
 					},
 				}}
 			/>
+			<SessionExpiryWatcher navigate={path => router.navigate(path)} />
 			<RouterProvider router={router} />
 		</AppErrorBoundary>
 	);

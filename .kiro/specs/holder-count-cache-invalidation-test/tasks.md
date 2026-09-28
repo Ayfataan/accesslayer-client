@@ -8,7 +8,7 @@ The production diff is intentionally small: one utility file, one hook, one comp
 
 ## Tasks
 
-- [x]  1. Extract `getFeaturedCreatorKeyHolderCopy` to a shared utility module
+- [x] 1. Extract `getFeaturedCreatorKeyHolderCopy` to a shared utility module
    - Create `src/utils/holderCount.utils.ts`
    - Move the `getFeaturedCreatorKeyHolderCopy` function (currently defined inline in `LandingPage.tsx` at line ~81) into the new file
    - Export `HolderCountCopy` interface and `getFeaturedCreatorKeyHolderCopy` function
@@ -16,7 +16,7 @@ The production diff is intentionally small: one utility file, one hook, one comp
    - Keep the existing inline definition in `LandingPage.tsx` for now — it will be replaced in Task 4
    - _Requirements: 5.1, 5.2, 5.3, 5.4_
 
-- [x]  2. Create `useCreatorHolderCount` hook
+- [x] 2. Create `useCreatorHolderCount` hook
    - Create `src/hooks/useCreatorHolderCount.ts`
    - Implement `useQuery` with query key `['creator', creatorId, 'holderCount']` and `staleTime: 30_000`
    - Accept `fetchHolderCount: (id: string) => Promise<number | null>` as an injected parameter (avoids module-level `vi.mock` in tests)
@@ -24,7 +24,7 @@ The production diff is intentionally small: one utility file, one hook, one comp
    - Return `{ count: data ?? null, isLoading, isError }`
    - _Requirements: 2.1, 2.2, 2.3_
 
-- [x]  3. Create `FeaturedCreatorAudienceChip` component
+- [x] 3. Create `FeaturedCreatorAudienceChip` component
    - Create `src/components/common/FeaturedCreatorAudienceChip.tsx`
    - Accept props: `creatorId: string` and `fetchHolderCount: (id: string) => Promise<number | null>`
    - Call `useCreatorHolderCount(creatorId, fetchHolderCount)` and pipe `count` through `getFeaturedCreatorKeyHolderCopy`
@@ -34,7 +34,7 @@ The production diff is intentionally small: one utility file, one hook, one comp
    - Import `getFeaturedCreatorKeyHolderCopy` from `@/utils/holderCount.utils`
    - _Requirements: 1.1, 1.3, 1.4, 3.1, 3.2, 5.1, 5.2, 5.3_
 
-- [x]  4. Update `LandingPage.tsx` to use `FeaturedCreatorAudienceChip`
+- [x] 4. Update `LandingPage.tsx` to use `FeaturedCreatorAudienceChip`
    - Import `FeaturedCreatorAudienceChip` from `@/components/common/FeaturedCreatorAudienceChip`
    - Replace the inline `<MiniStatChip label="Audience" …>` block (lines ~1199–1205) with `<FeaturedCreatorAudienceChip creatorId={featuredCreator.id} fetchHolderCount={...} />`
    - Pass a `fetchHolderCount` implementation that returns `Promise.resolve(FEATURED_CREATOR_KEY_HOLDER_COUNT)` (preserves existing behaviour until the real endpoint lands)
@@ -42,9 +42,9 @@ The production diff is intentionally small: one utility file, one hook, one comp
    - Verify `LandingPage.tsx` still compiles and the keyboard test (`LandingPage.keyboard.test.tsx`) still passes
    - _Requirements: 1.1, 3.4_
 
-- [-] 5. Write the integration test
+- [ ] 5. Write the integration test
    - Create `src/pages/__tests__/holderCountCacheInvalidation.test.tsx`
-   - [-] 5.1 Set up test scaffolding
+   - [ ] 5.1 Set up test scaffolding
       - Import `QueryClient`, `QueryClientProvider` from `@tanstack/react-query`; `MemoryRouter` from `react-router`; `render`, `screen`, `waitFor`, `act` from `@testing-library/react`; `fc` from `fast-check`; `beforeEach`, `afterEach`, `describe`, `expect`, `it`, `vi` from `vitest`
       - Import `FeaturedCreatorAudienceChip` from `@/components/common/FeaturedCreatorAudienceChip`
       - Import `getFeaturedCreatorKeyHolderCopy` from `@/utils/holderCount.utils`
@@ -56,28 +56,28 @@ The production diff is intentionally small: one utility file, one hook, one comp
       - Implement `createWrapper(queryClient)` returning a component that wraps children in `<QueryClientProvider>` + `<MemoryRouter>`
       - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-   - [~] 5.2 Write property test for Property 1 — initial render round-trip
+   - [ ] 5.2 Write property test for Property 1 — initial render round-trip
       - **Property 1: Initial render round-trip**
       - **Validates: Requirements 1.1, 5.4**
       - Use `fc.asyncProperty(fc.integer({ min: 1, max: 1_000_000 }), ...)` with `numRuns: 100`
       - For each `count`: create fresh `queryClient`, seed with `queryClient.setQueryData(['creator', CREATOR_ID, 'holderCount'], count)`, render `FeaturedCreatorAudienceChip` with wrapper, assert `screen.getByText(getFeaturedCreatorKeyHolderCopy(count).value)` is in the document, assert `mockFetchHolderCount` was NOT called, then `unmount()`
       - _Requirements: 1.1, 1.2, 5.4_
 
-   - [~] 5.3 Write property test for Property 2 — stale-while-revalidate display stability
+   - [ ] 5.3 Write property test for Property 2 — stale-while-revalidate display stability
       - **Property 2: Stale-while-revalidate display stability**
       - **Validates: Requirements 2.3**
       - Use `fc.asyncProperty(fc.integer({ min: 1, max: 1_000_000 }), ...)` with `numRuns: 100`
       - For each `initialCount`: seed cache, render component, call `queryClient.invalidateQueries` but do NOT resolve the pending `mockFetchHolderCount` (use a `Promise` that never resolves during the assertion window), assert old value is still visible and no blank/error state
       - _Requirements: 2.3_
 
-   - [~] 5.4 Write property test for Property 3 — post-invalidation update round-trip
+   - [ ] 5.4 Write property test for Property 3 — post-invalidation update round-trip
       - **Property 3: Post-invalidation update round-trip**
       - **Validates: Requirements 3.1, 3.2, 3.4**
       - Use `fc.asyncProperty(fc.integer({ min: 1, max: 999 }), fc.integer({ min: 1000, max: 1_000_000 }), ...)` with `numRuns: 100` (disjoint ranges guarantee `initialCount !== updatedCount`)
       - For each pair `(initialCount, updatedCount)`: seed cache with `initialCount`, render, spy on `window.location.reload`, invalidate query, await `waitFor` assertion that updated text is visible and old text is gone, assert `reloadSpy` was NOT called, `unmount()`
       - _Requirements: 3.1, 3.2, 3.3, 3.4_
 
-   - [~] 5.5 Write property test for Property 4 — format function round-trip
+   - [ ] 5.5 Write property test for Property 4 — format function round-trip
       - **Property 4: Format function round-trip**
       - **Validates: Requirements 5.1, 5.4**
       - Use synchronous `fc.property(fc.integer({ min: 1, max: 10_000_000 }), ...)` with `numRuns: 200`
@@ -91,7 +91,7 @@ The production diff is intentionally small: one utility file, one hook, one comp
       - After invalidation + resolved refetch: assert `mockFetchHolderCount` was called exactly once with `CREATOR_ID`
       - _Requirements: 1.3, 1.4, 2.2, 2.4_
 
-- [~] 6. Checkpoint — run tests and confirm everything passes
+- [ ] 6. Checkpoint — run tests and confirm everything passes
    - Run `pnpm test` (or `pnpm vitest run`) from `accesslayer-client--fork/`
    - Confirm `holderCountCacheInvalidation.test.tsx` passes all property and edge-case tests
    - Confirm `LandingPage.keyboard.test.tsx` still passes (no regression from Task 4 changes)

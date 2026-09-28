@@ -1,6 +1,11 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
-import type { GetCoursesParams } from '@/services/course.service';
+import {
+	courseService,
+	type Course,
+	type GetCoursesParams,
+} from '@/services/course.service';
+import showToast from '@/utils/toast.util';
 
 export function useCreatorList(params?: GetCoursesParams) {
 	return useQuery({
@@ -10,31 +15,37 @@ export function useCreatorList(params?: GetCoursesParams) {
 }
 
 export function useCreatorDetail(id: string) {
-	const queryClient = useQueryClient();
-
 	return useQuery({
 		queryKey: queryKeys.creators.detail(id),
-		queryFn: async () => {
-			const key = queryKeys.creators.detail(id);
-			const cached = queryClient.getQueryData(key);
-			const isCacheMiss = cached === undefined;
-
-			if (isCacheMiss && typeof process !== 'undefined' && process.env?.NODE_ENV !== 'test') {
-				const startMs = Date.now();
-				const result = await Promise.resolve(null);
-				const duration_ms = Date.now() - startMs;
-
-				console.debug('[creator-profile]', {
-					creator_id: id,
-					cache_status: 'miss',
-					duration_ms,
-				});
-
-				return result;
-			}
-
-			return null;
-		},
+		queryFn: () => courseService.getCourse(id),
 		enabled: !!id,
 	});
 }
+
+export function useSetCoCreator(courseId: string) {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: ({ address, splitBps }: { address: string; splitBps: number }) =>
+			courseService.setCoCreator(courseId, address, splitBps),
+		onSuccess: (updatedCourse: Course) => {
+			if (updatedCourse) {
+				queryClient.setQueryData(
+					queryKeys.creators.detail(courseId),
+					updatedCourse
+				);
+			}
+			void queryClient.invalidateQueries({
+				queryKey: queryKeys.creators.detail(courseId),
+			});
+			showToast.success('Co-creator configured successfully');
+		},
+		onError: (error: unknown) => {
+			const message =
+				error instanceof Error ? error.message : 'Failed to set co-creator';
+			showToast.error(message);
+		},
+	});
+}
+
+

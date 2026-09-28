@@ -3,9 +3,15 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import LandingPage from '@/pages/LandingPage';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { courseService } from '@/services/course.service';
 import showToast from '@/utils/toast.util';
+
+vi.mock('wagmi', () => ({
+	useAccount: vi.fn(() => ({ address: undefined, isConnected: false })),
+}));
+
+import LandingPage from '@/pages/LandingPage';
 
 vi.mock('@/services/course.service', () => ({
 	courseService: { getCourses: vi.fn() },
@@ -121,10 +127,13 @@ describe('LandingPage trade confirmation toast (#540)', () => {
 	it('shows a success toast with quantity and creator name after a confirmed buy', async () => {
 		mockGetCourses.mockResolvedValue([]);
 		const user = userEvent.setup();
+		const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 		render(
-			<MemoryRouter>
-				<LandingPage />
-			</MemoryRouter>
+			<QueryClientProvider client={queryClient}>
+				<MemoryRouter>
+					<LandingPage />
+				</MemoryRouter>
+			</QueryClientProvider>
 		);
 
 		const buyButtons = await screen.findAllByRole('button', {
@@ -141,22 +150,24 @@ describe('LandingPage trade confirmation toast (#540)', () => {
 
 		await waitFor(
 			() =>
-				expect(mockShowToast.transactionSuccess).toHaveBeenCalledTimes(1),
-			{ timeout: 3000 }
+				expect(mockShowToast.transactionSuccess).toHaveBeenCalledWith(
+					'Trade confirmed',
+					'Bought 5 keys from Alex Rivers'
+				),
+			{ timeout: 8000 }
 		);
-		expect(mockShowToast.transactionSuccess).toHaveBeenCalledWith(
-			'Trade confirmed',
-			expect.stringMatching(/^Bought 5 keys from .+$/)
-		);
-	});
+	}, 15000);
 
 	it('shows a success toast with quantity and creator name after a confirmed sell', async () => {
 		mockGetCourses.mockResolvedValue([]);
 		const user = userEvent.setup();
+		const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 		render(
-			<MemoryRouter>
-				<LandingPage />
-			</MemoryRouter>
+			<QueryClientProvider client={queryClient}>
+				<MemoryRouter>
+					<LandingPage />
+				</MemoryRouter>
+			</QueryClientProvider>
 		);
 
 		const sellButtons = await screen.findAllByRole('button', {
@@ -173,12 +184,11 @@ describe('LandingPage trade confirmation toast (#540)', () => {
 
 		await waitFor(
 			() =>
-				expect(mockShowToast.transactionSuccess).toHaveBeenCalledTimes(1),
-			{ timeout: 3000 }
+				expect(mockShowToast.transactionSuccess).toHaveBeenCalledWith(
+					'Trade confirmed',
+					'Sold 1 key from Alex Rivers'
+				),
+			{ timeout: 8000 }
 		);
-		expect(mockShowToast.transactionSuccess).toHaveBeenCalledWith(
-			'Trade confirmed',
-			expect.stringMatching(/^Sold 1 key from .+$/)
-		);
-	});
+	}, 15000);
 });

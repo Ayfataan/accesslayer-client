@@ -6,7 +6,8 @@
  */
 import type { ComponentProps, ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LandingPage from '@/pages/LandingPage';
 import {
@@ -133,6 +134,15 @@ const mockMatchMedia = () => {
 const getCreatorTitles = () =>
 	screen.getAllByRole('article').map(node => node.textContent);
 
+function RouteLocationTracker() {
+	const location = useLocation();
+	return <div data-testid="location-search">{location.search}</div>;
+}
+
+function makeQueryClient() {
+	return new QueryClient({ defaultOptions: { queries: { retry: false } } });
+}
+
 describe('LandingPage debounced search clear integration (#519)', () => {
 	beforeEach(() => {
 		mockMatchMedia();
@@ -147,9 +157,11 @@ describe('LandingPage debounced search clear integration (#519)', () => {
 
 	it('re-fetches without a search param and restores the full creator list after the input is cleared', async () => {
 		render(
-			<MemoryRouter>
-				<LandingPage />
-			</MemoryRouter>
+			<QueryClientProvider client={makeQueryClient()}>
+				<MemoryRouter>
+					<LandingPage />
+				</MemoryRouter>
+			</QueryClientProvider>
 		);
 
 		await waitFor(() => expect(mockGetCourses).toHaveBeenCalledTimes(1));
@@ -176,5 +188,31 @@ describe('LandingPage debounced search clear integration (#519)', () => {
 		await waitFor(() =>
 			expect(getCreatorTitles()).toEqual(['Creator Alpha', 'Creator Beta'])
 		);
+	});
+
+	it('removes search param from the URL and resets to page one after clearing', async () => {
+		render(
+			<QueryClientProvider client={makeQueryClient()}>
+				<MemoryRouter initialEntries={['/?search=Beta']}>
+					<LandingPage />
+					<RouteLocationTracker />
+				</MemoryRouter>
+			</QueryClientProvider>
+		);
+
+		await waitFor(() => expect(mockGetCourses).toHaveBeenCalledTimes(1));
+		expect(mockGetCourses).toHaveBeenLastCalledWith({ search: 'Beta' });
+
+		const input = screen.getByPlaceholderText(
+			/search creators by name or handle/i
+		);
+		fireEvent.change(input, { target: { value: '' } });
+
+		await waitFor(() => expect(mockGetCourses).toHaveBeenCalledTimes(2));
+		expect(mockGetCourses).toHaveBeenLastCalledWith(undefined);
+
+		await waitFor(() => {
+			expect(screen.getByTestId('location-search')).toHaveTextContent('');
+		});
 	});
 });

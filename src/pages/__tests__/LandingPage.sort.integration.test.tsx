@@ -1,6 +1,7 @@
 import type { ComponentProps, ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LandingPage from '@/pages/LandingPage';
 import {
@@ -150,6 +151,10 @@ function RouteLocationTracker() {
 	return <div data-testid="location-search">{location.search}</div>;
 }
 
+function makeQueryClient() {
+	return new QueryClient({ defaultOptions: { queries: { retry: false } } });
+}
+
 describe('LandingPage sort dropdown integration test', () => {
 	beforeEach(() => {
 		mockMatchMedia();
@@ -164,10 +169,12 @@ describe('LandingPage sort dropdown integration test', () => {
 
 	it('selects sort and reorders creator list to match API response, updating the URL query string', async () => {
 		render(
-			<MemoryRouter>
-				<LandingPage />
-				<RouteLocationTracker />
-			</MemoryRouter>
+			<QueryClientProvider client={makeQueryClient()}>
+				<MemoryRouter>
+					<LandingPage />
+					<RouteLocationTracker />
+				</MemoryRouter>
+			</QueryClientProvider>
 		);
 
 		// Initial load gets courses in featured order
@@ -197,6 +204,30 @@ describe('LandingPage sort dropdown integration test', () => {
 		// Assert dropdown selection reflected in the URL query string
 		await waitFor(() =>
 			expect(screen.getByTestId('location-search')).toHaveTextContent('sort=price-asc')
+		);
+	});
+
+	it('initialises sort dropdown from URL param and fetches with that sort on load', async () => {
+		render(
+			<QueryClientProvider client={makeQueryClient()}>
+				<MemoryRouter initialEntries={['/?sort=price-asc']}>
+					<LandingPage />
+					<RouteLocationTracker />
+				</MemoryRouter>
+			</QueryClientProvider>
+		);
+
+		// Assert initial fetch uses the sort param from URL
+		await waitFor(() => expect(mockGetCourses).toHaveBeenCalledTimes(1));
+		expect(mockGetCourses).toHaveBeenLastCalledWith({ sort: 'price-asc' });
+
+		// Assert dropdown shows the correct selected option
+		const dropdown = screen.getByLabelText(/^sort$/i) as HTMLSelectElement;
+		expect(dropdown.value).toBe('price-asc');
+
+		// Assert list renders results matching the price-sorted response
+		await waitFor(() =>
+			expect(getCreatorTitles()).toEqual(['Creator Beta', 'Creator Gamma', 'Creator Alpha'])
 		);
 	});
 });

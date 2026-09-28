@@ -89,6 +89,8 @@ Match your structural loading fallbacks strictly to your structural data card la
 - **Error Boundaries (`CreatorPageErrorBoundary`):** Use at the route level to safely isolate catastrophic runtime engine failures, critical layout state breakdowns, or complete backend authorization drops across whole pages.
 - **Inline Contextual States (`SectionErrorBoundary`):** Use for sub-components, standalone layout modules, tabs, or localized search bars where a remote service query issue shouldn't block a user from browsing the remainder of the active application canvas. Always supply the React Query context `refetch` callback method directly to retry controls.
 
+> The full convention — every error display mode (toast, inline, section boundary, page boundary, transaction surfaces, network banner), the `ApiError` status cheat sheet, and how to add a new error type to the classification system — lives in **[Error Handling Conventions](./error-handling-conventions.md)**.
+
 ### 4. Code Implementation Blueprint
 
 ```tsx

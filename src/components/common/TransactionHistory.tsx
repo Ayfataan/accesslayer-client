@@ -4,6 +4,8 @@ import { ChevronDown, ChevronUp, ArrowUpRight, ArrowDownRight, Minus } from 'luc
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/utils/time.utils';
 import { formatCreatorHandle } from '@/utils/handleDisplay.utils';
+import TransactionTypeBadge from '@/components/common/TransactionTypeBadge';
+
 
 export interface Transaction {
 	id: string;
@@ -97,6 +99,14 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({
 		localStorage.setItem(COMPACT_VIEW_KEY, String(isCompact));
 	}, [isCompact]);
 
+	const sortedTransactions = [...transactions].sort((left, right) => {
+		if (left.timestamp !== right.timestamp) {
+			return right.timestamp - left.timestamp;
+		}
+
+		return right.id.localeCompare(left.id);
+	});
+
 	const toggleCompact = () => {
 		setIsCompact(!isCompact);
 	};
@@ -124,17 +134,6 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({
 		}
 	};
 
-	const getTransactionTypeLabel = (type: Transaction['type']) => {
-		switch (type) {
-			case 'buy':
-				return 'Buy';
-			case 'sell':
-				return 'Sell';
-			default:
-				return 'Unknown';
-		}
-	};
-
 	return (
 		<section className="rounded-2xl border border-white/10 bg-white/5 p-6 md:p-8">
 			<div className="mb-6 flex items-center justify-between">
@@ -157,7 +156,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({
 			</div>
 
 			<div className="space-y-2">
-				{transactions.map(tx => {
+				{sortedTransactions.map(tx => {
 					const displayHandle = formatCreatorHandle(tx.creatorHandle);
 					const isExpanded = expandedRows.has(tx.id) || !isCompact;
 					return (
@@ -178,9 +177,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({
 								<div className="flex min-w-0 flex-1 items-center gap-4">
 									<div className="min-w-0 flex-1">
 										<div className="flex items-center gap-2">
-											<span className="font-semibold text-white">
-												{getTransactionTypeLabel(tx.type)}
-											</span>
+											<TransactionTypeBadge type={tx.type} />
 											<span className="text-white/40">•</span>
 											<span
 												className="text-white/90"

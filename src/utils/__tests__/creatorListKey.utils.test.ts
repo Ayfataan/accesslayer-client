@@ -6,7 +6,9 @@ describe('creatorListKey', () => {
 		[1, 'creator-1'],
 		[42, 'creator-42'],
 		[9_999, 'creator-9999'],
-	])('returns a stable creator key for creator id %i', (creatorId, key) => {
+		['alpha', 'creator-alpha'],
+		['creator-beta', 'creator-beta'],
+	])('returns a stable creator key for creator id %s', (creatorId, key) => {
 		expect(creatorListKey(creatorId)).toBe(key);
 	});
 });

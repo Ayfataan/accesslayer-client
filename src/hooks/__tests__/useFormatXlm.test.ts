@@ -101,4 +101,65 @@ describe('useFormatXlm', () => {
 			expect(result.current.format(10_000_000, { decimals: 0 })).toBe('1');
 		});
 	});
+	describe('bigint inputs (#645)', () => {
+		it('formats a safe-range bigint identically to the equivalent number', () => {
+			expect(formatXlm(15_000_000n)).toBe(formatXlm(15_000_000));
+			expect(formatXlm(500_000n)).toBe(formatXlm(500_000));
+			expect(formatXlm(70_000_000_000n)).toBe(formatXlm(70_000_000_000));
+		});
+
+		it('respects the decimals option for bigint inputs', () => {
+			expect(formatXlm(10_000_000n, { decimals: 0 })).toBe(
+				formatXlm(10_000_000, { decimals: 0 })
+			);
+			expect(formatXlm(15_000_000n, { decimals: 7 })).toBe(
+				formatXlm(15_000_000, { decimals: 7 })
+			);
+		});
+
+		it('formats a bigint above Number.MAX_SAFE_INTEGER without precision loss', () => {
+			// 9_007_199_254_740_993 is MAX_SAFE_INTEGER + 2; as a number it
+			// silently rounds to ...992, so the final displayed digit proves
+			// whether the bigint path avoided float conversion.
+			const stroops = 9_007_199_254_740_993n;
+			const result = formatXlm(stroops, { decimals: 7 });
+
+			const expectedWhole = new Intl.NumberFormat(undefined, {
+				useGrouping: true,
+			}).format(900_719_925n);
+			expect(result.startsWith(expectedWhole)).toBe(true);
+			expect(result.endsWith('4740993')).toBe(true);
+		});
+
+		it('never renders scientific notation for very large bigints', () => {
+			const result = formatXlm(123_456_789_012_345_678_901_234_567_890n);
+			expect(result).not.toMatch(/e/i);
+		});
+
+		it('keeps every digit of a very large bigint', () => {
+			// 12_345_678_901_234_567_890 stroops = 1_234_567_890_123.4567890 XLM
+			const result = formatXlm(12_345_678_901_234_567_890n, { decimals: 7 });
+			const digitsOnly = result.replace(/[^0-9]/g, '');
+			expect(digitsOnly).toBe('12345678901234567890');
+		});
+
+		it('formats 0n as 0.00', () => {
+			expect(formatXlm(0n)).toBe('0.00');
+		});
+
+		it('formats a negative bigint as a negative formatted string', () => {
+			expect(formatXlm(-15_000_000n)).toBe(`-${formatXlm(15_000_000n)}`);
+			expect(formatXlm(-15_000_000n)).toBe(formatXlm(-15_000_000));
+		});
+
+		it('does not emit a negative sign when a negative amount rounds to zero', () => {
+			// -1 stroop rounds to 0.00 at 2 decimals — "-0.00" would be wrong
+			expect(formatXlm(-1n)).toBe('0.00');
+		});
+
+		it('hook format function accepts bigint inputs', () => {
+			const { result } = renderHook(() => useFormatXlm());
+			expect(result.current.format(15_000_000n)).toBe(formatXlm(15_000_000));
+		});
+	});
 });

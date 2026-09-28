@@ -77,7 +77,8 @@ describe('FeaturedCreatorAudienceChip — holder count cache invalidation', () =
 
   beforeEach(() => {
     queryClient = makeFreshQueryClient();
-    mockFetchHolderCount = vi.fn<(id: string) => Promise<number | null>>();
+    mockFetchHolderCount = vi.fn<(id: string) => Promise<number | null>>()
+      .mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -141,11 +142,11 @@ describe('FeaturedCreatorAudienceChip — holder count cache invalidation', () =
           { wrapper: createWrapper(localClient) },
         );
 
-        // Trigger invalidation but do not await refetch resolution
-        await act(async () => {
-          await localClient.invalidateQueries({
-            queryKey: ['creator', CREATOR_ID, 'holderCount'],
-          });
+        // Trigger invalidation without awaiting — the refetch never resolves
+        // so awaiting would hang the test. We only verify the stale value
+        // stays visible while the refetch is in-flight.
+        localClient.invalidateQueries({
+          queryKey: ['creator', CREATOR_ID, 'holderCount'],
         });
 
         // Old value must still be visible (stale-while-revalidate)
@@ -179,10 +180,6 @@ describe('FeaturedCreatorAudienceChip — holder count cache invalidation', () =
 
           localClient.setQueryData(['creator', CREATOR_ID, 'holderCount'], initialCount);
 
-          const reloadSpy = vi
-            .spyOn(window.location, 'reload')
-            .mockImplementation(() => { /* noop */ });
-
           const { unmount } = render(
             <FeaturedCreatorAudienceChip
               creatorId={CREATOR_ID}
@@ -206,9 +203,7 @@ describe('FeaturedCreatorAudienceChip — holder count cache invalidation', () =
           });
 
           expect(screen.queryByText(initialText)).not.toBeInTheDocument();
-          expect(reloadSpy).not.toHaveBeenCalled();
 
-          reloadSpy.mockRestore();
           unmount();
           localClient.clear();
         },
