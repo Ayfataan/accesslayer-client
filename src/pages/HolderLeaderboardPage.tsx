@@ -20,12 +20,6 @@ function truncateAddress(address: string): string {
 	return `${address.slice(0, 4)}...${address.slice(-4)}`;
 }
 
-function formatSinceDate(dateString?: string): string {
-	// Since date is not currently provided by the API, return placeholder
-	// This can be updated when the API adds first acquisition timestamp
-	return '—';
-}
-
 function getRankColor(rank: number): string {
 	if (rank === 1) return 'text-amber-400';
 	if (rank === 2) return 'text-slate-300';
