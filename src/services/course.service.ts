@@ -116,6 +116,16 @@ export interface Course {
 	circuitBreakerThresholdBps?: number | null;
 	/** Key-level circuit breaker price impact threshold in percent (e.g. 15 = 15%) (#1034). */
 	circuitBreakerThresholdPercent?: number | null;
+	/** Whether the early access whitelist gate is enabled for this creator key (#1031). */
+	isWhitelistEnabled?: boolean;
+	whitelistEnabled?: boolean;
+	/** Approved wallet addresses on the early access whitelist (#1031). */
+	whitelist?: WhitelistEntry[];
+}
+
+export interface WhitelistEntry {
+	walletAddress: string;
+	addedAt: string;
 }
 
 export interface CurveMilestone {

@@ -190,7 +190,7 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 			const activeEl = document.activeElement;
 			if (
 				!(activeEl instanceof HTMLInputElement) ||
-				activeEl.getAttribute('data-testid') !== 'trade-dialog-amount'
+				activeEl.dataset.testid !== 'trade-dialog-amount'
 			) {
 				return;
 			}
@@ -244,7 +244,6 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 				const clamped = clampBuyQuantity(next.toString());
 				setAmountText(clamped.value.toString());
 				setTouched(true);
-				return;
 			}
 		};
 
@@ -265,7 +264,7 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 
 	const parsedAmount = useMemo(() => {
 		const normalized = amountText.trim();
-		if (!normalized) return NaN;
+		if (!normalized) return Number.NaN;
 		return Number(normalized);
 	}, [amountText]);
 
@@ -459,10 +458,7 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 		if (side === 'sell') {
 			setAmountText(String(Math.max(0, availableHoldings)));
 		} else {
-			let maxVal =
-				maxBuyQuantity != null
-					? maxBuyQuantity
-					: BUY_QUANTITY_BOUNDS.MAX_QTY;
+			let maxVal = maxBuyQuantity ?? BUY_QUANTITY_BOUNDS.MAX_QTY;
 			if (
 				effectiveHoldingCap != null &&
 				Number.isFinite(effectiveHoldingCap) &&
@@ -957,13 +953,13 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 							<kbd className="rounded border border-white/10 bg-white/[0.04] px-1 py-0.5 font-mono text-[10px]">
 								Enter
 							</kbd>
-							confirm
+							<span>confirm</span>
 						</span>
 						<span className="flex items-center gap-1">
 							<kbd className="rounded border border-white/10 bg-white/[0.04] px-1 py-0.5 font-mono text-[10px]">
 								Esc
 							</kbd>
-							close
+							<span>close</span>
 						</span>
 						<span className="flex items-center gap-1">
 							<kbd className="rounded border border-white/10 bg-white/[0.04] px-1 py-0.5 font-mono text-[10px]">
@@ -972,7 +968,7 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 							<kbd className="rounded border border-white/10 bg-white/[0.04] px-1 py-0.5 font-mono text-[10px]">
 								-
 							</kbd>
-							adjust
+							<span>adjust</span>
 						</span>
 					</div>
 				</DialogContent>

@@ -28,6 +28,7 @@ import showToast from '@/utils/toast.util';
 import { getSignatureErrorMessage } from '@/utils/errorHandling.utils';
 import type { KeyConfig } from '@/services/course.service';
 import SpreadIndicator from '@/components/common/SpreadIndicator';
+import HoldingCapIndicator from '@/components/common/HoldingCapIndicator';
 import { cn } from '@/lib/utils';
 import { ArrowRight } from 'lucide-react';
 import { useSlippageTolerancePreference } from '@/hooks/useSlippageTolerancePreference';
@@ -134,7 +135,7 @@ export const BuySellKeyFlow: React.FC<BuySellKeyFlowProps> = ({
 
 	const parsedAmount = useMemo(() => {
 		const trimmed = amountText.trim();
-		if (!trimmed) return NaN;
+		if (!trimmed) return Number.NaN;
 		return Number(trimmed);
 	}, [amountText]);
 
@@ -186,6 +187,28 @@ export const BuySellKeyFlow: React.FC<BuySellKeyFlowProps> = ({
 		effectiveHoldingCap,
 	]);
 
+	const isCapLimitReached = useMemo(
+		() =>
+			side === 'buy' &&
+			effectiveHoldingCap != null &&
+			Number.isFinite(effectiveHoldingCap) &&
+			effectiveHoldingCap > 0 &&
+			availableHoldings >= effectiveHoldingCap,
+		[side, effectiveHoldingCap, availableHoldings]
+	);
+
+	const isCapBreached = useMemo(
+		() =>
+			side === 'buy' &&
+			effectiveHoldingCap != null &&
+			Number.isFinite(effectiveHoldingCap) &&
+			effectiveHoldingCap > 0 &&
+			Number.isFinite(parsedAmount) &&
+			parsedAmount > 0 &&
+			availableHoldings + parsedAmount > effectiveHoldingCap,
+		[side, effectiveHoldingCap, availableHoldings, parsedAmount]
+	);
+
 	const isValid = validationError === null;
 	const showError = touched && validationError !== null;
 
@@ -195,10 +218,7 @@ export const BuySellKeyFlow: React.FC<BuySellKeyFlowProps> = ({
 		if (side === 'sell') {
 			setAmountText(String(Math.max(0, availableHoldings)));
 		} else {
-			let maxVal =
-				maxBuyQuantity != null
-					? maxBuyQuantity
-					: BUY_QUANTITY_BOUNDS.MAX_QTY;
+			let maxVal = maxBuyQuantity ?? BUY_QUANTITY_BOUNDS.MAX_QTY;
 			if (
 				effectiveHoldingCap != null &&
 				Number.isFinite(effectiveHoldingCap) &&
@@ -327,13 +347,28 @@ export const BuySellKeyFlow: React.FC<BuySellKeyFlowProps> = ({
 	// Open confirmation modal
 	const handleReviewOrder = () => {
 		setTouched(true);
-		if (!isValid || isCircuitBreakerBreached || (impactWarningActive && !impactAcknowledged)) return;
+		if (
+			!isValid ||
+			isCapLimitReached ||
+			isCapBreached ||
+			isCircuitBreakerBreached ||
+			(impactWarningActive && !impactAcknowledged)
+		) {
+			return;
+		}
 		setConfirmationOpen(true);
 	};
 
 	// Final submission
 	const handleConfirmSubmission = async () => {
-		if (isCircuitBreakerBreached || (impactWarningActive && !impactAcknowledged)) return;
+		if (
+			isCapLimitReached ||
+			isCapBreached ||
+			isCircuitBreakerBreached ||
+			(impactWarningActive && !impactAcknowledged)
+		) {
+			return;
+		}
 		setInternalSubmitting(true);
 		const tradeParams: BuySellTradeParams = {
 			creatorId,
@@ -376,6 +411,19 @@ export const BuySellKeyFlow: React.FC<BuySellKeyFlowProps> = ({
 			setInternalSubmitting(false);
 		}
 	};
+
+	let reviewButtonLabel = 'Review Sell Order';
+	if (side === 'buy') {
+		if (isCapLimitReached) {
+			reviewButtonLabel = 'Holding Cap Reached';
+		} else if (isCapBreached) {
+			reviewButtonLabel = 'Holding Cap Exceeded';
+		} else if (isCircuitBreakerBreached) {
+			reviewButtonLabel = 'Circuit Breaker Tripped';
+		} else {
+			reviewButtonLabel = 'Review Buy Order';
+		}
+	}
 
 	return (
 		<div
@@ -509,6 +557,20 @@ export const BuySellKeyFlow: React.FC<BuySellKeyFlowProps> = ({
 						{validationError}
 					</p>
 				)}
+				{/* Holding cap indicator on buy form (#1015) */}
+				{side === 'buy' && effectiveHoldingCap != null && effectiveHoldingCap > 0 && (
+					<HoldingCapIndicator
+						currentHoldings={availableHoldings}
+						holdingCap={effectiveHoldingCap}
+						purchaseAmount={
+							Number.isFinite(parsedAmount) && parsedAmount > 0
+								? parsedAmount
+								: 0
+						}
+						creatorName={creatorName}
+						className="my-2.5"
+					/>
+				)}
 				{side === 'buy' && (
 					<CircuitBreakerStatusIndicator
 						impactPercent={priceImpactPercent}
@@ -586,6 +648,8 @@ export const BuySellKeyFlow: React.FC<BuySellKeyFlowProps> = ({
 				disabled={
 					!isValid ||
 					isSubmitting ||
+					isCapLimitReached ||
+					isCapBreached ||
 					isCircuitBreakerBreached ||
 					(impactWarningActive && !impactAcknowledged)
 				}
@@ -598,11 +662,7 @@ export const BuySellKeyFlow: React.FC<BuySellKeyFlowProps> = ({
 				)}
 			>
 				<span className="flex items-center justify-center gap-1.5">
-					{side === 'buy'
-						? isCircuitBreakerBreached
-							? 'Circuit Breaker Tripped'
-							: 'Review Buy Order'
-						: 'Review Sell Order'}
+					{reviewButtonLabel}
 					<ArrowRight className="h-4 w-4" />
 				</span>
 			</Button>
