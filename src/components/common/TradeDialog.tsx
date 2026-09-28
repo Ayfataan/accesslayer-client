@@ -519,7 +519,8 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 						disabled={
 							isSubmitting || (side === 'sell' && availableHoldings <= 0)
 						}
-						className="absolute right-2 rounded-md border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-xs font-bold text-amber-300 transition-colors hover:bg-amber-400/20 active:scale-95 disabled:pointer-events-none disabled:opacity-40"
+						// ≥44px tap target on mobile; compact pill on sm+ (#1055).
+						className="absolute right-2 -my-1 min-h-11 rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-300 transition-colors hover:bg-amber-400/20 active:scale-95 disabled:pointer-events-none disabled:opacity-40 sm:my-0 sm:min-h-0 sm:px-2 sm:py-0.5"
 					>
 						MAX
 					</button>
@@ -652,6 +653,8 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 				disabled={isSubmitting}
 				data-focus-order="2"
 				data-testid="trade-dialog-cancel"
+				// ≥44px tap targets for the sheet actions on mobile (#1055).
+				className={cn(isMobile && 'min-h-11 w-full')}
 			>
 				Cancel
 			</Button>
@@ -674,6 +677,7 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 				aria-busy={isSubmitting || undefined}
 				data-focus-order="3"
 				data-testid="trade-dialog-confirm"
+				className={cn(isMobile && 'min-h-11 w-full')}
 			>
 				<StableButtonContent
 					isLoading={isSubmitting}
@@ -716,7 +720,7 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 					onOpenChange={next => !isSubmitting && onOpenChange(next)}
 				>
 					<BottomSheetContent
-						className="max-h-[calc(100vh-80px)] overflow-y-auto"
+						className="max-h-[calc(100dvh-80px)] overflow-y-auto"
 						enableDrag={!isSubmitting}
 						hideCloseButton={isSubmitting}
 						onOpenAutoFocus={event => {
@@ -743,11 +747,14 @@ const TradeDialog: React.FC<TradeDialogProps> = ({
 								{side === 'buy'
 									? `Purchase creator keys for ${creatorName}.`
 									: `Sell creator keys for ${creatorName}.`}
-							</BottomSheetDescription>
-						</div>
-
-						{bodyContent}
-
+						</BottomSheetDescription>
+					</div>
+					{bodyContent}
+						{/*
+						 * Full-width ≥44px tap targets on mobile (#1055); row
+						 * layout on sm+ where the pointer cursor allows smaller
+						 * buttons.
+						 */}
 						<div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
 							{actionButtons}
 						</div>
