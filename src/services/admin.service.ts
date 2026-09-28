@@ -49,6 +49,21 @@ export interface MultiSigAction {
 	executedAt?: string;
 }
 
+export type TimelockActionStatus = 'pending' | 'executed' | 'cancelled';
+
+export interface TimelockAction {
+	id: string;
+	type: string;
+	params: unknown;
+	eta: string;
+	status: TimelockActionStatus;
+	queuedAt?: string;
+	executedAt?: string;
+	cancelledAt?: string;
+	cancellable: boolean;
+	cancellationDeadline?: string;
+}
+
 type MultiSigActionsResponse =
 	| MultiSigAction[]
 	| {
@@ -96,7 +111,9 @@ function toMultiSigAction(raw: unknown): MultiSigAction | null {
 		description:
 			typeof value.description === 'string' ? value.description : undefined,
 		payload:
-			typeof value.payload === 'string' ? value.payload : `admin-action:${id}`,
+			typeof value.payload === 'string'
+				? value.payload
+				: `admin-action:${id}`,
 		createdAt:
 			typeof value.createdAt === 'string'
 				? value.createdAt
@@ -134,6 +151,54 @@ function toMultiSigActions(raw: unknown): MultiSigAction[] {
 	return candidates
 		.map(toMultiSigAction)
 		.filter((action): action is MultiSigAction => action !== null);
+}
+
+function toTimelockAction(raw: unknown): TimelockAction | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const value = raw as Record<string, unknown>;
+	if (
+		typeof value.id !== 'string' ||
+		typeof value.type !== 'string' ||
+		(value.status !== 'pending' &&
+			value.status !== 'executed' &&
+			value.status !== 'cancelled')
+	) {
+		return null;
+	}
+
+	const eta = value.eta;
+	if (typeof eta !== 'string' && typeof eta !== 'number') return null;
+
+	return {
+		id: value.id,
+		type: value.type,
+		params: value.params ?? {},
+		eta: typeof eta === 'number' ? new Date(eta * 1000).toISOString() : eta,
+		status: value.status,
+		queuedAt: typeof value.queuedAt === 'string' ? value.queuedAt : undefined,
+		executedAt:
+			typeof value.executedAt === 'string' ? value.executedAt : undefined,
+		cancelledAt:
+			typeof value.cancelledAt === 'string' ? value.cancelledAt : undefined,
+		cancellable: value.cancellable === true,
+		cancellationDeadline:
+			typeof value.cancellationDeadline === 'string'
+				? value.cancellationDeadline
+				: undefined,
+	};
+}
+
+function toTimelockActions(raw: unknown): TimelockAction[] {
+	const candidates = Array.isArray(raw)
+		? raw
+		: raw && typeof raw === 'object'
+			? ((raw as Record<string, unknown>).actions ??
+				(raw as Record<string, unknown>).data)
+			: [];
+	if (!Array.isArray(candidates)) return [];
+	return candidates
+		.map(toTimelockAction)
+		.filter((action): action is TimelockAction => action !== null);
 }
 
 /** Raw server shapes the callers endpoint may return, normalised on read. */
@@ -260,9 +325,7 @@ class AdminService extends BaseApiService {
 			});
 			const raw = response.data.data;
 			return toMultiSigAction(
-				raw && typeof raw === 'object' && 'action' in raw
-					? raw.action
-					: raw
+				raw && typeof raw === 'object' && 'action' in raw ? raw.action : raw
 			);
 		} catch (error) {
 			throw this.handleError(error);
@@ -270,16 +333,51 @@ class AdminService extends BaseApiService {
 	}
 
 	/** Execute an action after the server has verified the signature threshold. */
-	async executeMultiSigAction(actionId: string): Promise<MultiSigAction | null> {
+	async executeMultiSigAction(
+		actionId: string
+	): Promise<MultiSigAction | null> {
 		try {
 			const response = await this.api.post<
 				APIResponse<MultiSigAction | { action?: MultiSigAction }>
 			>(`/admin/multisig/actions/${encodeURIComponent(actionId)}/execute`);
 			const raw = response.data.data;
 			return toMultiSigAction(
-				raw && typeof raw === 'object' && 'action' in raw
-					? raw.action
-					: raw
+				raw && typeof raw === 'object' && 'action' in raw ? raw.action : raw
+			);
+		} catch (error) {
+			throw this.handleError(error);
+		}
+	}
+
+	/** List protocol actions waiting for their timelock ETA. */
+	async getPendingTimelockActions(): Promise<TimelockAction[]> {
+		try {
+			const response = await this.api.get<APIResponse<unknown>>(
+				'/admin/timelock/actions/pending'
+			);
+			return toTimelockActions(response.data.data);
+		} catch (error) {
+			throw this.handleError(error);
+		}
+	}
+
+	/** List executed and cancelled protocol actions for the audit trail. */
+	async getTimelockHistory(): Promise<TimelockAction[]> {
+		try {
+			const response = await this.api.get<APIResponse<unknown>>(
+				'/admin/timelock/actions/history'
+			);
+			return toTimelockActions(response.data.data);
+		} catch (error) {
+			throw this.handleError(error);
+		}
+	}
+
+	/** Ask the authenticated admin API to submit the on-chain cancel action. */
+	async cancelTimelockAction(actionId: string): Promise<void> {
+		try {
+			await this.api.post(
+				`/admin/timelock/actions/${encodeURIComponent(actionId)}/cancel`
 			);
 		} catch (error) {
 			throw this.handleError(error);
@@ -297,13 +395,22 @@ class AdminService extends BaseApiService {
 		}
 	}
 
-	async addAclContract(address: string, functions: string[]): Promise<AclContract> {
+	async addAclContract(
+		address: string,
+		functions: string[]
+	): Promise<AclContract> {
 		try {
 			const response = await this.api.post<APIResponse<AclContract>>(
 				'/admin/acl/whitelist',
 				{ address, functions }
 			);
-			return response.data.data ?? { address, functions, addedAt: new Date().toISOString() };
+			return (
+				response.data.data ?? {
+					address,
+					functions,
+					addedAt: new Date().toISOString(),
+				}
+			);
 		} catch (error) {
 			throw this.handleError(error);
 		}
@@ -311,7 +418,9 @@ class AdminService extends BaseApiService {
 
 	async removeAclContract(address: string): Promise<void> {
 		try {
-			await this.api.delete(`/admin/acl/whitelist/${encodeURIComponent(address)}`);
+			await this.api.delete(
+				`/admin/acl/whitelist/${encodeURIComponent(address)}`
+			);
 		} catch (error) {
 			throw this.handleError(error);
 		}
@@ -319,9 +428,10 @@ class AdminService extends BaseApiService {
 
 	async getAclHistory(): Promise<AclHistoryEvent[]> {
 		try {
-			const response = await this.api.get<APIResponse<AclHistoryEvent[]>>(
-				'/admin/acl/history'
-			);
+			const response =
+				await this.api.get<APIResponse<AclHistoryEvent[]>>(
+					'/admin/acl/history'
+				);
 			return response.data.data ?? [];
 		} catch (error) {
 			throw this.handleError(error);
