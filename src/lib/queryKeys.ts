@@ -140,4 +140,13 @@ export const queryKeys = {
 		all: (creatorId: string) => ['bundles', creatorId] as const,
 		list: (creatorId: string) => ['bundles', creatorId, 'list'] as const,
 	},
+	creatorRevenue: {
+		all: () => ['creatorRevenue'] as const,
+		summary: (creatorId: string) =>
+			['creatorRevenue', creatorId, 'summary'] as const,
+		history: (creatorId: string, interval: string) =>
+			['creatorRevenue', creatorId, 'history', interval] as const,
+		withdrawals: (creatorId: string) =>
+			['creatorRevenue', creatorId, 'withdrawals'] as const,
+	},
 } as const;
