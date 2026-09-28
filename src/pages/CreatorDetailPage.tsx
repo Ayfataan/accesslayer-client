@@ -624,9 +624,18 @@ function CreatorDetailPageContent() {
 					data-testid="creator-holders-container"
 					className="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 shadow-2xl backdrop-blur-md md:p-8"
 				>
-					<h2 className="font-grotesque text-xl font-black tracking-tight text-white mb-6">
-						Key Holders
-					</h2>
+					<div className="flex items-center justify-between gap-4 mb-6">
+						<h2 className="font-grotesque text-xl font-black tracking-tight text-white">
+							Key Holders
+						</h2>
+						<Link
+							to={`/creator/${id}/leaderboard`}
+							className="text-sm font-semibold text-amber-300 hover:text-amber-200 transition-colors"
+							data-testid="view-leaderboard-link"
+						>
+							View Leaderboard →
+						</Link>
+					</div>
 					<KeyHolderList
 						holders={holders}
 						hasNextPage={hasNextPage}
