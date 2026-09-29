@@ -6,22 +6,17 @@ import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { useCreatorProfileStaleIndicator } from '@/hooks/useCreatorProfileStaleIndicator';
 import CreatorBreadcrumb from '@/components/common/CreatorBreadcrumb';
 import CreatorProfileHeader from '@/components/common/CreatorProfileHeader';
-import CreatorProfileInfoGrid from '@/components/common/CreatorProfileInfoGrid';
 import CreatorActivityFeed from '@/components/common/CreatorActivityFeed';
-import CreatorProfileStaleIndicator from '@/components/common/CreatorProfileStaleIndicator';
 import CreatorProfileStatRow from '@/components/common/CreatorProfileStatRow';
 import { BondingCurveChart } from '@/components/common/BondingCurveChart';
-import KeySimulationTool from '@/components/common/KeySimulationTool';
 import BuyCooldownCountdown from '@/components/common/BuyCooldownCountdown';
-import KeyHolderList from '@/components/common/KeyHolderList';
-import HolderConcentrationChart from '@/components/common/HolderConcentrationChart';
 import StakingRewardsSection from '@/components/common/StakingRewardsSection';
 import DeprecationNotice from '@/components/common/DeprecationNotice';
 import SubscriptionAccessGate from '@/components/common/SubscriptionAccessGate';
 import { isKeyDeprecated } from '@/utils/keyDeprecation.utils';
 import { Button } from '@/components/ui/button';
 import { CreatorDashboardSkeleton } from '@/components/common/CreatorSkeleton';
-import { bpsToPercent, formatNumber } from '@/utils/numberFormat.utils';
+import { formatNumber } from '@/utils/numberFormat.utils';
 import {
 	resolveCreatorKeyPriceStroops,
 	formatDisplayKeyPrice,
@@ -33,7 +28,6 @@ import { useNavigationTiming } from '@/hooks/useNavigationTiming';
 import { useKeyHolders } from '@/hooks/useKeyHolders';
 import { useProfileStore } from '@/hooks/useProfileStore';
 import { useWalletHoldings, useTradeMutation } from '@/hooks/useWallet';
-import CoCreatorSection from '@/components/creator/CoCreatorSection';
 import ShareTwitterButton from '@/components/common/ShareTwitterButton';
 import { PriceHistoryChart } from '@/components/common/PriceHistoryChart';
 import type { PriceHistoryInterval } from '@/services/course.service';
@@ -52,7 +46,6 @@ import { useKeyConfig } from '@/hooks/useKeyConfig';
 import KeyStatsPanel from '@/components/common/KeyStatsPanel';
 import Skeleton from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
-import GraduatedCurveMilestoneChart from '@/components/common/GraduatedCurveMilestoneChart';
 import KeyDeprecationBanner from '@/components/common/KeyDeprecationBanner';
 import MergeProposalBanner from '@/components/common/MergeProposalBanner';
 import KeyBuybackModal from '@/components/common/KeyBuybackModal';
@@ -107,8 +100,7 @@ function CreatorDetailPageContent() {
 		});
 	}, [creator, recordVisit]);
 
-	const { holders, hasNextPage, isFetchingNextPage, fetchNextPage } =
-		useKeyHolders(id || '');
+	useKeyHolders(id || '');
 
 	// User holdings for Share to X button
 	const profile = useProfileStore(state => state.profile);
@@ -171,7 +163,7 @@ function CreatorDetailPageContent() {
 	const isLockedOut = isWhitelistGateActive && !isUserWhitelisted;
 
 	// Track stale data indicator
-	const { shouldShowBadge, handleRefetch } = useCreatorProfileStaleIndicator(
+	useCreatorProfileStaleIndicator(
 		id || '',
 		isFetching,
 		() => refetch()
@@ -261,18 +253,7 @@ function CreatorDetailPageContent() {
 		throw error;
 	}
 
-	const feeItems = [
-		{
-			label: 'Creator fee',
-			value: bpsToPercent(creator.creatorFeeBps),
-			helperText: 'Fee paid directly to the creator on each trade.',
-		},
-		{
-			label: 'Protocol fee',
-			value: bpsToPercent(creator.protocolFeeBps),
-			helperText: 'Fee paid to the platform for protocol maintenance.',
-		},
-	];
+
 
 	const statItems = [
 		{
