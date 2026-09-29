@@ -1,5 +1,6 @@
 // src/services/course.service.ts
 import { BaseApiService, ApiError, type APIResponse } from './api.service';
+import type { CreatorSocialLinks } from '@/types/creatorProfile';
 import { cacheManager } from '@/utils/cache.utils';
 
 export interface Course {
@@ -17,8 +18,12 @@ export interface Course {
 	category: string;
 	level: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
 	socialHandle?: string;
+	/** Optional creator-published social links (#1054). */
+	socialLinks?: CreatorSocialLinks | null;
 	isVerified?: boolean;
 	volume24h?: number;
+	/** Cumulative all-time traded volume in stroops, when the API reports it. */
+	totalVolume?: number | null;
 	change24h?: number;
 	joinedAt?: string;
 	/** ISO timestamp for when the creator key was created. */
@@ -53,6 +58,25 @@ export interface Course {
 	auctionSupply?: number;
 	/** Keys sold through the auction so far. */
 	auctionSold?: number;
+	/**
+	 * ISO timestamp for when the pre-launch bidding window closes and the
+	 * key goes live on the bonding curve (#924). When absent, the auction
+	 * ends once `auctionSold` reaches `auctionSupply`.
+	 */
+	auctionEndsAt?: string;
+	/**
+	 * Minimum amount (XLM) a new bid must exceed the current highest bid by
+	 * (#924). When absent, a 5% increment over the highest bid is assumed.
+	 */
+	auctionMinIncrement?: number;
+	/**
+	 * Current highest bid in XLM (#924). When `auctionBids` is present this
+	 * is usually derived from the history instead; the explicit field is the
+	 * source of truth for auctions whose history hasn't been loaded yet.
+	 */
+	auctionHighestBid?: number;
+	/** Pre-launch auction bid history, newest first (#924). */
+	auctionBids?: AuctionBidEntry[];
 	/**
 	 * Early-sell penalty in basis points (0–2000 = 0%–20%).
 	 * Applied to sells within the first 7 days after key creation.
@@ -109,6 +133,13 @@ export interface Course {
 	deprecationReason?: string | null;
 	/** Performance bond status for creator key protection (#975). */
 	performanceBond?: PerformanceBond | null;
+	/**
+	 * Key-level circuit breaker price impact threshold in basis points (e.g. 1500 = 15%) (#1034).
+	 * Buy orders whose price impact equals or exceeds this threshold will be halted.
+	 */
+	circuitBreakerThresholdBps?: number | null;
+	/** Key-level circuit breaker price impact threshold in percent (e.g. 15 = 15%) (#1034). */
+	circuitBreakerThresholdPercent?: number | null;
 	/** Whether the early access whitelist gate is enabled for this creator key (#1031). */
 	isWhitelistEnabled?: boolean;
 	whitelistEnabled?: boolean;
@@ -175,9 +206,14 @@ export interface KeyConfig {
 	spreadStroops?: number | null;
 	/** Spread expressed in basis points of the buy price, when reported. */
 	spreadBps?: number | null;
-	/** Maximum holding cap configured for this key (#1015); null means unlimited. */
+	/** Maximum holding cap per wallet, when reported by the key config endpoint (#1015). */
 	holdingCap?: number | null;
+	/** Alias for holdingCap — maximum holding cap per wallet (#1015). */
 	maxHoldingCap?: number | null;
+	/** Key-level circuit breaker price impact threshold in basis points (#1034). */
+	circuitBreakerThresholdBps?: number | null;
+	/** Key-level circuit breaker price impact threshold in percent (#1034). */
+	circuitBreakerThresholdPercent?: number | null;
 }
 
 /**
@@ -358,6 +394,21 @@ export interface KeyStats {
 	twap24h: number | null;
 }
 
+
+/** Single bid placed during a key's pre-launch auction window (#924). */
+export interface AuctionBidEntry {
+	/** Unique bid id from the contract. */
+	id: string;
+	/** Wallet that placed the bid. */
+	bidderAddress: string;
+	/** Optional display name for the bidder. */
+	bidderName?: string;
+	/** Bid amount in XLM. */
+	amount: number;
+	/** ISO timestamp when the bid was placed. */
+	placedAt: string;
+}
+
 /**
  * Unique trader count for a creator key (#1020): distinct wallets that have
  * bought or sold the key at least once.
@@ -367,6 +418,7 @@ export interface KeyUniqueTraders {
 	uniqueTraders: number | null;
 	/** Unique trader count as of 24 hours ago, used for the trend indicator. */
 	uniqueTraders24hAgo: number | null;
+
 }
 
 class CourseService extends BaseApiService {
@@ -509,6 +561,23 @@ class CourseService extends BaseApiService {
 				`/keys/${keyId}/stats`
 			);
 			return response.data.data;
+		} catch (error) {
+			throw this.handleError(error);
+		}
+	}
+
+
+	/**
+	 * Get the live pre-launch auction bid history for a key (#924) —
+	 * GET /keys/:keyId/auction/bids. Returns the bids newest first so the
+	 * client can render the current leader without extra sorting.
+	 */
+	async getAuctionBids(keyId: string): Promise<AuctionBidEntry[]> {
+		try {
+			const response = await this.api.get<
+				APIResponse<AuctionBidEntry[]>
+			>(`/keys/${keyId}/auction/bids`);
+			return response.data.data ?? [];
 		} catch (error) {
 			throw this.handleError(error);
 		}

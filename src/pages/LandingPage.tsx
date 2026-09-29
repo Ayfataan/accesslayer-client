@@ -120,6 +120,8 @@ import MarketplaceSidebar from '@/components/common/MarketplaceSidebar';
 import { copyTextToClipboard } from '@/utils/clipboard.utils';
 import SelfFreezeDialog from '@/components/common/SelfFreezeDialog';
 import SharePortfolioModal from '@/components/common/SharePortfolioModal';
+import PortfolioPerformanceChart from '@/components/common/PortfolioPerformanceChart';
+import { usePortfolioHistory } from '@/hooks/usePortfolioHistory';
 
 const FEATURED_CREATOR_FACTS = [
 	{ label: 'Membership', value: 'Collectors Circle' },
@@ -813,6 +815,16 @@ function LandingPage() {
 	const reinvestMutation = useReinvestDividendMutation(activeWalletAddress);
 	const redeemMutation = useRedeemDeprecatedKeyMutation(activeWalletAddress);
 	const { data: cachedHoldings = [] } = useWalletHoldings(activeWalletAddress);
+
+	// #1052 — the wallet's portfolio value over time, plotted by the performance
+	// chart in the holdings overview. The full series is fetched once and the
+	// chart slices it per range selector.
+	const {
+		data: portfolioHistory = [],
+		isLoading: isPortfolioHistoryLoading,
+		isError: isPortfolioHistoryError,
+		refetch: refetchPortfolioHistory,
+	} = usePortfolioHistory(activeWalletAddress);
 
 	// #935 — the wallet's persisted per-key cost basis, used as the average
 	// purchase price each position's unrealised P&L is measured against. The
@@ -1717,6 +1729,19 @@ function LandingPage() {
 									</div>
 								</div>
 							)}
+						<PortfolioPerformanceChart
+							data={portfolioHistory}
+							isLoading={isPortfolioHistoryLoading}
+							error={
+								isPortfolioHistoryError
+									? 'Unable to load portfolio history.'
+									: null
+							}
+							onRetry={() => {
+								void refetchPortfolioHistory();
+							}}
+							className="mt-6"
+						/>
 						{isLoading ? (
 							<CreatorHoldingsListSkeleton className="mt-6" />
 						) : heldKeyPositions.filter(

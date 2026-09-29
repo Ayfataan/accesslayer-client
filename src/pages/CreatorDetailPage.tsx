@@ -13,18 +13,9 @@ import CreatorProfileStatRow from '@/components/common/CreatorProfileStatRow';
 import BondingCurveChart from '@/components/common/BondingCurveChart';
 import KeySimulationTool from '@/components/common/KeySimulationTool';
 import BuyCooldownCountdown from '@/components/common/BuyCooldownCountdown';
-import TradeCooldownButton from '@/components/common/TradeCooldownButton';
-import {
-	useTradeCooldownStatus,
-	invalidateTradeCooldownStatus,
-	resolveActiveTradeCooldown,
-} from '@/hooks/useTradeCooldownStatus';
-import type { ActiveTradeCooldown } from '@/utils/tradeCooldown.utils';
-import { isActiveCooldown } from '@/utils/tradeCooldown.utils';
-import KeyHolderList from '@/components/common/KeyHolderList';
-import HolderConcentrationChart from '@/components/common/HolderConcentrationChart';
 import StakingRewardsSection from '@/components/common/StakingRewardsSection';
 import DeprecationNotice from '@/components/common/DeprecationNotice';
+import SubscriptionAccessGate from '@/components/common/SubscriptionAccessGate';
 import { isKeyDeprecated } from '@/utils/keyDeprecation.utils';
 import { Button } from '@/components/ui/button';
 import { CreatorDashboardSkeleton } from '@/components/common/CreatorSkeleton';
@@ -33,9 +24,15 @@ import {
 	resolveCreatorKeyPriceStroops,
 	formatDisplayKeyPrice,
 } from '@/utils/keyPriceDisplay.utils';
+import {
+	resolveHighestBid,
+	formatAuctionBidAmount,
+} from '@/utils/auctionBid.utils';
 import KeyDetailPageErrorBoundary from '@/components/common/KeyDetailPageErrorBoundary';
 import { ApiError } from '@/services/api.service';
 import WatchlistButton from '@/components/common/WatchlistButton';
+import AuctionPhaseSection from '@/components/common/AuctionPhaseSection';
+import { useAuctionPhase } from '@/hooks/useAuctionPhase';
 import { useNavigationTiming } from '@/hooks/useNavigationTiming';
 import { useKeyHolders } from '@/hooks/useKeyHolders';
 import { useProfileStore } from '@/hooks/useProfileStore';
@@ -69,6 +66,11 @@ import PerformanceBondPanel from '@/components/common/PerformanceBondPanel';
 import WhitelistStatusBadge from '@/components/common/WhitelistStatusBadge';
 import ShareModal from '@/components/common/ShareModal';
 
+import { useTradeCooldownStatus, invalidateTradeCooldownStatus, resolveActiveTradeCooldown } from '@/hooks/useTradeCooldownStatus';
+import { isActiveCooldown, type ActiveTradeCooldown } from '@/utils/tradeCooldown.utils';
+import TradeCooldownButton from '@/components/common/TradeCooldownButton';
+import KeyHolderList from '@/components/common/KeyHolderList';
+import HolderConcentrationChart from '@/components/common/HolderConcentrationChart';
 function CreatorDetailPageContent() {
 	usePurchaseConfetti();
 
@@ -166,6 +168,16 @@ function CreatorDetailPageContent() {
 	const performanceBond =
 		performanceBondData ?? creator?.performanceBond ?? null;
 
+
+	// Pre-launch auction phase (#924): a live tick that drives the countdown
+	// and flips the page back to the bonding curve view once the auction ends.
+	const { phase: auctionPhase } = useAuctionPhase({
+		auctionPrice: creator?.auctionPrice ?? null,
+		auctionSupply: creator?.auctionSupply ?? null,
+		auctionSold: creator?.auctionSold ?? null,
+		auctionEndsAt: creator?.auctionEndsAt ?? null,
+	});
+
 	// Whitelist gate check for early access keys (#1031)
 	const isWhitelistGateActive = Boolean(
 		creator?.isWhitelistEnabled ?? creator?.whitelistEnabled ?? false
@@ -180,6 +192,7 @@ function CreatorDetailPageContent() {
 		  )
 		: false;
 	const isLockedOut = isWhitelistGateActive && !isUserWhitelisted;
+
 
 	// Track stale data indicator
 	const { shouldShowBadge, handleRefetch } = useCreatorProfileStaleIndicator(
@@ -287,10 +300,26 @@ function CreatorDetailPageContent() {
 		},
 	];
 
+	// During the pre-launch auction phase (#808/#924) the bonding curve price
+	// is not live yet — surface the current highest bid (or early-access price).
+	const auctionLeadBid =
+		auctionPhase === 'active'
+			? resolveHighestBid(creator.auctionBids, creator.auctionHighestBid)
+			: null;
+	const auctionStatValue =
+		auctionLeadBid != null
+			? formatAuctionBidAmount(auctionLeadBid)
+			: creator.auctionPrice != null && creator.auctionPrice > 0
+				? formatAuctionBidAmount(creator.auctionPrice)
+				: '—';
+
 	const statItems = [
 		{
-			label: 'Current Price',
-			value: formatDisplayKeyPrice(resolveCreatorKeyPriceStroops(creator)),
+			label: auctionPhase === 'active' ? 'Current Highest Bid' : 'Current Price',
+			value:
+				auctionPhase === 'active'
+					? auctionStatValue
+					: formatDisplayKeyPrice(resolveCreatorKeyPriceStroops(creator)),
 		},
 		{
 			label: 'Key Supply',
@@ -391,7 +420,8 @@ function CreatorDetailPageContent() {
 					<WatchlistButton
 						creator={creator}
 						labelName={creator.title}
-						className="mt-3 shrink-0"
+						// ≥44px tap target on mobile (WCAG 2.5.5); compact on sm+.
+						className="mt-3 size-11 shrink-0 sm:size-9"
 					/>
 				</div>
 
@@ -407,6 +437,7 @@ function CreatorDetailPageContent() {
 				<div data-testid="creator-stat-cards">
 					<CreatorProfileStatRow items={statItems} />
 				</div>
+
 				{/* Key Stats Panel (#952) */}
 				<KeyStatsPanel
 					stats={keyStats}
@@ -427,8 +458,13 @@ function CreatorDetailPageContent() {
 						<DeprecationNotice reason={creator.deprecationReason} />
 					</div>
 				)}
-				<div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4">
-					<div>
+				{/*
+				 * Key Purchase CTA row (#1055): stacks vertically on mobile so the
+				 * buy action stays reachable and full-width with a 44px tap target;
+				 * desktop keeps the horizontal layout.
+				 */}
+				<div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+					<div className="min-w-0">
 						<div className="flex items-center gap-2">
 							<p className="text-xs font-semibold uppercase tracking-wider text-white/55">
 								Key Purchase
@@ -465,7 +501,8 @@ function CreatorDetailPageContent() {
 							disabled
 							data-testid="key-detail-buy-button"
 							variant="outline"
-							className="rounded-xl font-bold"
+							// ≥44px tap target on mobile; full-width, compact on sm+ (#1055).
+							className="min-h-11 w-full rounded-xl font-bold sm:h-10 sm:min-h-0 sm:w-auto"
 						>
 							Buy Disabled (Deprecated)
 						</Button>
@@ -473,7 +510,8 @@ function CreatorDetailPageContent() {
 						<TradeCooldownButton
 							cooldown={tradeCooldown}
 							label="Buy Key"
-							className="rounded-xl font-bold"
+							// ≥44px tap target on mobile; full-width, compact on sm+ (#1055).
+							className="min-h-11 w-full rounded-xl font-bold sm:h-10 sm:min-h-0 sm:w-auto"
 							onClick={() => setBuyDialogOpen(true)}
 							buttonProps={{
 								'data-testid': 'key-detail-buy-button',
@@ -481,6 +519,23 @@ function CreatorDetailPageContent() {
 						/>
 					)}
 				</div>
+
+
+				{/* Pre-Launch Auction Phase (#924) */}
+				{auctionPhase !== 'inactive' && (
+					<AuctionPhaseSection
+						creatorId={creator.id}
+						auctionPrice={creator.auctionPrice}
+						auctionSupply={creator.auctionSupply}
+						auctionSold={creator.auctionSold}
+						auctionEndsAt={creator.auctionEndsAt}
+						auctionMinIncrement={creator.auctionMinIncrement}
+						auctionHighestBid={creator.auctionHighestBid}
+						auctionBids={creator.auctionBids}
+					/>
+				)}
+
+
 				{/* Buy Cooldown Countdown (only meaningful for authenticated users) */}
 				{userAddress && !isTradeCooldownActive && (
 					<BuyCooldownCountdown nextBuyAllowedAt={nextBuyAllowedAt} />
@@ -501,6 +556,7 @@ function CreatorDetailPageContent() {
 						}}
 					/>
 				</div>
+
 				{isTwapLoading ? (
 					<div
 						className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4"
@@ -516,7 +572,7 @@ function CreatorDetailPageContent() {
 						className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4"
 						data-testid="twap-price"
 					>
-						<div className="flex items-center justify-between gap-4">
+						<div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
 							<div>
 								<div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white/55">
 									<span
@@ -534,7 +590,7 @@ function CreatorDetailPageContent() {
 										<button
 											type="button"
 											aria-label="What is 24 hour TWAP?"
-											className="text-white/50"
+											className="-m-1 p-1 text-white/50"
 										>
 											ⓘ
 										</button>
@@ -548,8 +604,8 @@ function CreatorDetailPageContent() {
 								<span
 									className={
 										twapDelta < 0
-											? 'text-sm font-semibold text-emerald-400'
-											: 'text-sm font-semibold text-rose-400'
+											? 'text-sm font-semibold tabular-nums text-emerald-400'
+											: 'text-sm font-semibold tabular-nums text-rose-400'
 									}
 								>
 									{twapDelta < 0 ? '▼' : '▲'}{' '}
@@ -586,6 +642,62 @@ function CreatorDetailPageContent() {
 					protocolFeeBps={creator.protocolFeeBps}
 					creatorFeeBps={creator.creatorFeeBps}
 				/>
+
+
+				{/* TWAP for the live curve — not meaningful during the pre-launch auction */}
+				{auctionPhase !== 'active' &&
+					(isTwapLoading ? (
+						<div className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4" data-testid="twap-price">
+							<div aria-label="Loading 24 hour TWAP" role="status"><Skeleton className="h-3 w-24" /><Skeleton className="mt-2 h-6 w-32" /></div>
+						</div>
+					) : twapPrice != null ? (
+						<div className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4" data-testid="twap-price">
+							<div className="flex items-center justify-between gap-4">
+								<div>
+									<div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white/55">
+										<span className={twapDelta != null ? (twapDelta < 0 ? 'text-emerald-400' : 'text-rose-400') : ''}>TWAP (24h)</span>
+										<Tooltip content="Time-weighted average price over the past 24 hours. Less sensitive to short-term manipulation.">
+											<button type="button" aria-label="What is 24 hour TWAP?" className="text-white/50">ⓘ</button>
+										</Tooltip>
+									</div>
+									<div className="mt-1 text-xl font-bold text-white">{formatDisplayKeyPrice(twapPrice)}</div>
+								</div>
+								{twapDelta != null && <span className={twapDelta < 0 ? 'text-sm font-semibold text-emerald-400' : 'text-sm font-semibold text-rose-400'}>{twapDelta < 0 ? '▼' : '▲'} {formatDisplayKeyPrice(Math.abs(twapDelta))} vs spot</span>}
+							</div>
+						</div>
+					) : null)}
+
+				{/* Staking Rewards */}
+				<StakingRewardsSection {...stakingStats} isLoading={isLoading} />
+
+				{/* Price Chart — hidden during the pre-launch auction phase (#924) and
+				shown again once the auction closes and the curve activates */}
+				{auctionPhase !== 'active' && (
+					<div
+						className="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 shadow-2xl backdrop-blur-md md:p-8"
+						data-testid="creator-chart-container"
+					>
+						<h2 className="font-grotesque text-xl font-black tracking-tight text-white mb-6">
+							Price Curve
+						</h2>
+						<BondingCurveChart
+							data={chartData}
+							currentSupply={creator.creatorShareSupply ?? 100}
+							height={300}
+						/>
+					</div>
+				)}
+
+				{/* Buy Simulation Tool — likewise only once the curve is live */}
+				{auctionPhase !== 'active' && (
+					<KeySimulationTool
+						currentSupply={creator.creatorShareSupply ?? 100}
+						protocolFeeBps={creator.protocolFeeBps}
+						creatorFeeBps={creator.creatorFeeBps}
+					/>
+				)}
+
+
 				{/* Holder Concentration */}
 				<div
 					className="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 shadow-2xl backdrop-blur-md md:p-8"
@@ -638,6 +750,25 @@ function CreatorDetailPageContent() {
 						}}
 					/>
 				</div>
+
+				{/* Gated Content */}
+				<div className="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 shadow-2xl backdrop-blur-md md:p-8">
+					<h2 className="font-grotesque text-xl font-black tracking-tight text-white mb-6">
+						Exclusive Content
+					</h2>
+					<SubscriptionAccessGate
+						creatorId={creator.id}
+						minimumHolding={1}
+						onBuyClick={() => setBuyDialogOpen(true)}
+					>
+						<div className="rounded-xl bg-white/[0.03] p-6 border border-white/10">
+							<p className="text-white/80">
+								🎉 Welcome to the exclusive content section! Here you can access premium videos, articles, and perks from {creator.title || creator.name || 'this creator'}.
+							</p>
+						</div>
+					</SubscriptionAccessGate>
+				</div>
+
 				<div className="mt-8 rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 shadow-2xl backdrop-blur-md md:p-8">
 					<h2 className="font-grotesque text-xl font-black tracking-tight text-white mb-6">
 						Activity
@@ -652,15 +783,14 @@ function CreatorDetailPageContent() {
 						creatorId={creator.id}
 						creatorTitle={creator.title || creator.name || 'Creator Key'}
 						holdingsCount={holdingsCount}
-						buybackPriceStroops={
-							resolveCreatorKeyPriceStroops(creator) ?? 0
-						}
+						buybackPriceStroops={resolveCreatorKeyPriceStroops(creator) ?? 0}
 						userAddress={userAddress}
 						onSettled={receipt => {
 							setRecentSettlement(receipt);
 						}}
 					/>
 				)}
+
 				{creator && (
 					<TradeDialog
 						open={buyDialogOpen}
@@ -670,7 +800,6 @@ function CreatorDetailPageContent() {
 						keyPriceStroops={resolveCreatorKeyPriceStroops(creator)}
 						currentSupply={creator.creatorShareSupply}
 						maxBuyQuantity={creator.maxBuyQuantity}
-						holdingCap={creator.holdingCap ?? creator.maxHoldingCap}
 						launchPenaltyBps={creator.launchPenaltyBps}
 						keyConfig={keyConfig}
 						isKeyConfigLoading={isKeyConfigLoading}
