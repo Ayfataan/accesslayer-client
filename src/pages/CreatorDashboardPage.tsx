@@ -40,6 +40,8 @@ import { formatNumber } from '@/utils/numberFormat.utils';
 
 import { GraduatedCurveMilestoneChart } from '@/components/common/GraduatedCurveMilestoneChart';
 import CreatorRevenuePanel from '@/components/common/CreatorRevenuePanel';
+import RoyaltyEarningsCard from '@/components/creator/RoyaltyEarningsCard';
+import FundRewardPoolForm from '@/components/creator/FundRewardPoolForm';
 
 const TABS = [
 	{ label: 'Overview', value: 'overview' },
