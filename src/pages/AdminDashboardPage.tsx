@@ -1,4 +1,5 @@
 import MultiSigAdminPanel from '@/components/admin/MultiSigAdminPanel';
+import TimelockQueuePanel from '@/components/admin/TimelockQueuePanel';
 import OracleAccessPanel from '@/components/admin/OracleAccessPanel';
 import AclWhitelistPanel from '@/components/admin/AclWhitelistPanel';
 import UpgradeProxyPanel from '@/components/admin/UpgradeProxyPanel';
@@ -32,6 +33,7 @@ export default function AdminDashboardPage() {
 					<>
 						<AclWhitelistPanel />
 						<OracleAccessPanel />
+						<TimelockQueuePanel isAdmin={isAdmin} />
 						<MultiSigAdminPanel isAdmin={isAdmin} />
 						<UpgradeProxyPanel isAdmin={isAdmin} />
 					</>
