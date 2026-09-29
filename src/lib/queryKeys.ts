@@ -23,6 +23,8 @@ export const queryKeys = {
 		infiniteList: (params?: Omit<GetCoursesParams, 'page'>) =>
 			['creators', 'infiniteList', params ?? null] as const,
 		detail: (id: string) => ['creators', 'detail', id] as const,
+		priceHistory: (creatorId: string, interval: string) =>
+			['creators', creatorId, 'priceHistory', interval] as const,
 		holders: (creatorId: string) =>
 			['creators', creatorId, 'holders'] as const,
 		activity: (creatorId: string) =>
@@ -30,6 +32,8 @@ export const queryKeys = {
 		twap: (creatorId: string) =>
 			['creators', creatorId, 'twap', '24h'] as const,
 		stats: (creatorId: string) => ['creators', creatorId, 'stats'] as const,
+		uniqueTraders: (creatorId: string) =>
+			['creators', creatorId, 'unique-traders'] as const,
 		curveConfig: (creatorId: string) =>
 			['creators', creatorId, 'curve-config'] as const,
 		curveMigrations: (creatorId: string) =>
@@ -44,6 +48,14 @@ export const queryKeys = {
 			['creators', creatorId, 'vesting', 'claims', wallet] as const,
 		oraclePrice: (creatorId: string) =>
 			['creators', creatorId, 'oracle-price'] as const,
+		performanceBond: (creatorId: string) =>
+			['creators', creatorId, 'performance-bond'] as const,
+		tradeCooldown: (creatorId: string) =>
+			['creators', creatorId, 'trade-cooldown'] as const,
+		whitelist: (creatorId: string) =>
+			['creators', creatorId, 'whitelist'] as const,
+		publicProfile: (address: string) =>
+			['creators', 'public-profile', address] as const,
 		keyDeployment: (keyId: string) =>
 			['creators', 'deployment', keyId] as const,
 		discovery: {
@@ -54,11 +66,20 @@ export const queryKeys = {
 	},
 	wallet: {
 		holdings: (address: string) => ['wallet', address, 'holdings'] as const,
+		portfolioHistory: (address: string, range: string) =>
+			['wallet', address, 'portfolioHistory', range] as const,
 		activity: (address: string) => ['wallet', address, 'activity'] as const,
 		tradeHistory: (address: string) =>
 			['wallet', address, 'tradeHistory'] as const,
 		stakingPositions: (address: string) =>
 			['wallet', address, 'stakingPositions'] as const,
+		xlmBalance: (address: string) =>
+			['wallet', address, 'xlmBalance'] as const,
+	},
+	lp: {
+		all: () => ['lp'] as const,
+		positions: (wallet: string) => ['lp', 'positions', wallet] as const,
+		pool: (keyId: string) => ['lp', 'pool', keyId] as const,
 	},
 	notifications: {
 		all: () => ['notifications'] as const,
@@ -72,12 +93,14 @@ export const queryKeys = {
 		all: () => ['leaderboard'] as const,
 		volume: (window: VolumeWindow = '24h') =>
 			['leaderboard', 'volume', window] as const,
-                ratings: () => ['leaderboard', 'ratings'] as const,
+		ratings: () => ['leaderboard', 'ratings'] as const,
 	},
 	admin: {
 		oracleCallers: () => ['admin', 'oracle', 'callers'] as const,
 		multiSigPending: () => ['admin', 'multisig', 'pending'] as const,
 		multiSigHistory: () => ['admin', 'multisig', 'history'] as const,
+		aclWhitelist: () => ['admin', 'acl', 'whitelist'] as const,
+		aclHistory: () => ['admin', 'acl', 'history'] as const,
 	},
 	governance: {
 		all: () => ['governance'] as const,
@@ -90,6 +113,10 @@ export const queryKeys = {
 			['governance', 'proposal', proposalId, 'vote'] as const,
 		proposalVotes: (id: string) =>
 			['governance', 'proposal', id, 'votes'] as const,
+	},
+	mergeProposal: {
+		bySourceKey: (sourceKeyId: string) =>
+			['mergeProposal', 'source', sourceKeyId] as const,
 	},
 	staker: {
 		protocolRevenue: (wallet: string) =>
@@ -104,8 +131,42 @@ export const queryKeys = {
 		summary: (wallet: string) => ['referrals', wallet, 'summary'] as const,
 		wallets: (wallet: string) => ['referrals', wallet, 'wallets'] as const,
 	},
+	staking: {
+		all: () => ['staking'] as const,
+		dashboard: (wallet: string) =>
+			['staking', wallet, 'dashboard'] as const,
+	},
+	atomicSwap: {
+		all: () => ['atomic-swap'] as const,
+		proposal: (proposalId: string) =>
+			['atomic-swap', 'proposal', proposalId] as const,
+		proposals: (address: string, status?: string) =>
+			['atomic-swap', 'proposals', address, status ?? 'all'] as const,
+		history: (address: string) =>
+			['atomic-swap', 'history', address] as const,
+	},
 	bundles: {
 		all: (creatorId: string) => ['bundles', creatorId] as const,
 		list: (creatorId: string) => ['bundles', creatorId, 'list'] as const,
+		marketplace: {
+			all: () => ['bundles', 'marketplace'] as const,
+			list: () => ['bundles', 'marketplace', 'list'] as const,
+			detail: (bundleId: string) =>
+				['bundles', 'marketplace', 'detail', bundleId] as const,
+		},
+	},
+	status: {
+		all: () => ['status'] as const,
+		platform: () => ['status', 'platform'] as const,
+	},
+	creatorRevenue: {
+		all: () => ['creatorRevenue'] as const,
+		summary: (creatorId: string) =>
+			['creatorRevenue', creatorId, 'summary'] as const,
+		history: (creatorId: string, interval: string) =>
+			['creatorRevenue', creatorId, 'history', interval] as const,
+		withdrawals: (creatorId: string) =>
+			['creatorRevenue', creatorId, 'withdrawals'] as const,
 	},
 } as const;
+

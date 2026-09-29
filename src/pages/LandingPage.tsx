@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { LayoutGroup, motion } from 'framer-motion';
@@ -71,6 +72,13 @@ import {
 	resolveAveragePurchasePriceStroops,
 	type HeldKeyPosition,
 } from '@/utils/portfolioValue.utils';
+import TradeCooldownButton from '@/components/common/TradeCooldownButton';
+import type { ActiveTradeCooldown } from '@/utils/tradeCooldown.utils';
+import {
+	useTradeCooldownStatus,
+	invalidateTradeCooldownStatus,
+	resolveActiveTradeCooldown,
+} from '@/hooks/useTradeCooldownStatus';
 import {
 	averagePurchasePriceFromCostBasis,
 	resolveCostBasisWalletKey,
@@ -104,7 +112,7 @@ import { useNavigationTiming } from '@/hooks/useNavigationTiming';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { CREATOR_LIST_SORT_LAYOUT_TRANSITION } from '@/utils/creatorListSortTransition';
 import { creatorListKey } from '@/utils/creatorListKey.utils';
-import { Check, ChevronDown, Copy, RefreshCw, Share2 } from 'lucide-react';
+import { Check, ChevronDown, Copy, RefreshCw, ArrowLeftRight, Share2 } from 'lucide-react';
 import ClearedFiltersEmptyState from '@/components/common/ClearedFiltersEmptyState';
 import CreatorListPagination from '@/components/common/CreatorListPagination';
 import CreatorListGroupSeparator from '@/components/common/CreatorListGroupSeparator';
@@ -112,6 +120,8 @@ import MarketplaceSidebar from '@/components/common/MarketplaceSidebar';
 import { copyTextToClipboard } from '@/utils/clipboard.utils';
 import SelfFreezeDialog from '@/components/common/SelfFreezeDialog';
 import SharePortfolioModal from '@/components/common/SharePortfolioModal';
+import PortfolioPerformanceChart from '@/components/common/PortfolioPerformanceChart';
+import { usePortfolioHistory } from '@/hooks/usePortfolioHistory';
 
 const FEATURED_CREATOR_FACTS = [
 	{ label: 'Membership', value: 'Collectors Circle' },
@@ -718,6 +728,18 @@ function LandingPage() {
 	const { data: featuredKeyConfig, isLoading: isFeaturedKeyConfigLoading } =
 		useKeyConfig(featuredCreator?.id);
 
+	// #998 — trade cooldown for the featured key: fetched on page load and
+	// refetched after each trade (see handleConfirmTrade), so the buy/sell
+	// buttons show a live countdown and stay disabled until it expires.
+	const { data: featuredCooldownStatus } = useTradeCooldownStatus(
+		featuredCreator?.id ?? ''
+	);
+	const featuredTradeCooldown: ActiveTradeCooldown | null =
+		resolveActiveTradeCooldown(
+			featuredCooldownStatus,
+			featuredCreator?.nextBuyAllowedAt ?? null
+		);
+
 	useEffect(() => {
 		if (pendingScrollRestoreRef.current == null) return;
 		const target = pendingScrollRestoreRef.current;
@@ -793,6 +815,16 @@ function LandingPage() {
 	const reinvestMutation = useReinvestDividendMutation(activeWalletAddress);
 	const redeemMutation = useRedeemDeprecatedKeyMutation(activeWalletAddress);
 	const { data: cachedHoldings = [] } = useWalletHoldings(activeWalletAddress);
+
+	// #1052 — the wallet's portfolio value over time, plotted by the performance
+	// chart in the holdings overview. The full series is fetched once and the
+	// chart slices it per range selector.
+	const {
+		data: portfolioHistory = [],
+		isLoading: isPortfolioHistoryLoading,
+		isError: isPortfolioHistoryError,
+		refetch: refetchPortfolioHistory,
+	} = usePortfolioHistory(activeWalletAddress);
 
 	// #935 — the wallet's persisted per-key cost basis, used as the average
 	// purchase price each position's unrealised P&L is measured against. The
@@ -894,6 +926,14 @@ function LandingPage() {
 		setTradeSide(side);
 		setTradeDialogOpen(true);
 	}, []);
+
+	const queryClient = useQueryClient();
+	const refreshTradeCooldown = useCallback(
+		(keyId: string) => {
+			if (keyId) invalidateTradeCooldownStatus(queryClient, keyId);
+		},
+		[queryClient]
+	);
 
 	const handleConfirmTradeViaShortcut = useCallback(() => {
 		const confirmButton = document.querySelector(
@@ -1052,6 +1092,9 @@ function LandingPage() {
 				showToast.error(getSignatureErrorMessage(error));
 			}
 		} finally {
+			// #998 — after any settled trade, refetch the cooldown so the
+			// buy/sell buttons reflect the freshly committed cooldown window.
+			refreshTradeCooldown('1');
 			setTradeSubmitting(false);
 		}
 	};
@@ -1602,6 +1645,17 @@ function LandingPage() {
 									{displayedPortfolioValue.heldPositionCount}
 								</span>
 							</div>
+</div>
+						<div className="md:col-span-2 mt-4 flex justify-end">
+							<Button
+								variant="outline"
+								onClick={() => window.location.href = '/swap/create'}
+								disabled={heldKeyPositions.filter(p => p.quantity && p.quantity > 0).length === 0}
+								className="rounded-xl border-white/15 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white"
+							>
+								<ArrowLeftRight className="size-4 mr-2" aria-hidden="true" />
+								Create Atomic Swap
+							</Button>
 						</div>
 						{pnlSummary.status === 'ready' &&
 							pnlSummary.totalInvested > 0 && (
@@ -1642,7 +1696,7 @@ function LandingPage() {
 												)}`}
 												data-testid="pnl-summary-unrealised"
 											>
-												{formatPnLDisplay(pnlSummary.unrealisedPnL)}{' '}
+												{formatPnLDisplay(pnlSummary.unrealisedPnL)}&nbsp;
 												(
 												{formatPnLPercentage(
 													pnlSummary.pnlPercentage
@@ -1665,16 +1719,29 @@ function LandingPage() {
 											className="text-[0.65rem] leading-relaxed text-white/40 sm:text-right"
 											data-testid="pnl-summary-caption"
 										>
-											Valued at the current bonding curve sell price across{' '}
-											{pnlSummary.costBasisPositionCount}{' '}
+											Valued at the current bonding curve sell price across&nbsp;
+											{pnlSummary.costBasisPositionCount}&nbsp;
 											{pnlSummary.costBasisPositionCount === 1
 												? 'position'
-												: 'positions'}{' '}
+												: 'positions'}&nbsp;
 											with a tracked average purchase price.
 										</p>
 									</div>
 								</div>
 							)}
+						<PortfolioPerformanceChart
+							data={portfolioHistory}
+							isLoading={isPortfolioHistoryLoading}
+							error={
+								isPortfolioHistoryError
+									? 'Unable to load portfolio history.'
+									: null
+							}
+							onRetry={() => {
+								void refetchPortfolioHistory();
+							}}
+							className="mt-6"
+						/>
 						{isLoading ? (
 							<CreatorHoldingsListSkeleton className="mt-6" />
 						) : heldKeyPositions.filter(
@@ -1693,13 +1760,20 @@ function LandingPage() {
 										const creator = creators.find(
 											item => item.id === position.creatorId
 										);
+										// #998 — per-position trade cooldown: the position's
+										// own nextBuyAllowedAt (refreshed with the holdings
+										// query after each trade) drives the countdown.
 										return (
-											<PortfolioHoldingRow
-												key={position.creatorId}
-												position={position}
-												creator={creator}
+										<PortfolioHoldingRow
+											key={position.creatorId}
+											position={position}
+											creator={creator}
+											tradeCooldown={resolveActiveTradeCooldown(
+												null,
+												position.nextBuyAllowedAt ?? null
+											)}
 												onBuy={() => openTradeDialog('buy')}
-												onSell={() => openTradeDialog('sell')}
+											onSell={() => openTradeDialog('sell')}
 														onReinvest={async creatorId => {
 															const heldPosition = heldKeyPositions.find(
 																item => item.creatorId === creatorId
@@ -1954,36 +2028,44 @@ function LandingPage() {
 											)}
 										</button>
 									</div>
-									{isNetworkMismatch && <NetworkMismatchBanner />}
-									<div className="relative">
-										<div
-											className={cn(
-												'hidden md:flex items-center gap-3 transition-opacity duration-200',
-												tradeSubmitting &&
-													'pointer-events-none select-none opacity-60'
-											)}
-											aria-busy={tradeSubmitting || undefined}
-										>
-											<Button
-												className="rounded-xl"
-												onClick={() => openTradeDialog('buy')}
-												disabled={
-													isNetworkMismatch || tradeSubmitting
-												}
+									{isNetworkMismatch && <NetworkMismatchBanner />}										<div className="relative">
+											<div
+												className={cn(
+													'hidden md:flex items-center gap-3 transition-opacity duration-200',
+													tradeSubmitting &&
+														'pointer-events-none select-none opacity-60'
+												)}
+												aria-busy={tradeSubmitting || undefined}
 											>
-												Buy
-											</Button>
-											<Button
-												className="rounded-xl"
-												variant="outline"
-												onClick={() => openTradeDialog('sell')}
-												disabled={
-													isNetworkMismatch || tradeSubmitting
-												}
-											>
-												Sell
-											</Button>
-										</div>
+												{/* #998 — cooldown-aware trade actions: the label is
+												    replaced by a live countdown while the cooldown
+												    is active, with a tooltip explaining the policy. */}
+												<TradeCooldownButton
+													cooldown={featuredTradeCooldown}
+													label="Buy"
+													className="rounded-xl"
+													onClick={() => openTradeDialog('buy')}
+													buttonProps={{
+														disabled:
+															isNetworkMismatch || tradeSubmitting || undefined,
+														'aria-disabled':
+															isNetworkMismatch || tradeSubmitting || undefined,
+													}}
+												/>
+												<TradeCooldownButton
+													cooldown={featuredTradeCooldown}
+													label="Sell"
+													variant="outline"
+													className="rounded-xl"
+													onClick={() => openTradeDialog('sell')}
+													buttonProps={{
+														disabled:
+															isNetworkMismatch || tradeSubmitting || undefined,
+														'aria-disabled':
+															isNetworkMismatch || tradeSubmitting || undefined,
+													}}
+												/>
+											</div>
 										{tradeSubmitting && (
 											<div className="absolute inset-0 hidden items-center justify-center rounded-[1.25rem] border border-white/10 bg-slate-950/65 backdrop-blur-sm md:flex">
 												<div className="flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/80 px-3 py-1.5 text-xs font-bold text-white/85 shadow-lg">
@@ -2033,34 +2115,44 @@ function LandingPage() {
 									)}
 								</div>
 							</div>
-							<div className="flex items-center gap-2">
-								<div className="relative">
-									<div
-										className={cn(
-											'flex items-center gap-2 transition-opacity duration-200',
-											tradeSubmitting &&
-												'pointer-events-none select-none opacity-60'
-										)}
-										aria-busy={tradeSubmitting || undefined}
-									>
-										<Button
-											className="rounded-xl"
-											size="sm"
-											onClick={() => openTradeDialog('buy')}
-											disabled={isNetworkMismatch || tradeSubmitting}
+							<div className="flex items-center gap-2">									<div className="relative">
+										<div
+											className={cn(
+												'flex items-center gap-2 transition-opacity duration-200',
+												tradeSubmitting &&
+													'pointer-events-none select-none opacity-60'
+											)}
+											aria-busy={tradeSubmitting || undefined}
 										>
-											Buy
-										</Button>
-										<Button
-											className="rounded-xl"
-											size="sm"
-											variant="outline"
-											onClick={() => openTradeDialog('sell')}
-											disabled={isNetworkMismatch || tradeSubmitting}
-										>
-											Sell
-										</Button>
-									</div>
+											{/* #998 — cooldown-aware mobile trade actions. */}
+											<TradeCooldownButton
+												cooldown={featuredTradeCooldown}
+												label="Buy"
+												size="sm"
+												className="rounded-xl"
+												onClick={() => openTradeDialog('buy')}
+												buttonProps={{
+													disabled:
+														isNetworkMismatch || tradeSubmitting || undefined,
+													'aria-disabled':
+														isNetworkMismatch || tradeSubmitting || undefined,
+												}}
+											/>
+											<TradeCooldownButton
+												cooldown={featuredTradeCooldown}
+												label="Sell"
+												size="sm"
+												variant="outline"
+												className="rounded-xl"
+												onClick={() => openTradeDialog('sell')}
+												buttonProps={{
+													disabled:
+														isNetworkMismatch || tradeSubmitting || undefined,
+													'aria-disabled':
+														isNetworkMismatch || tradeSubmitting || undefined,
+												}}
+											/>
+										</div>
 									{tradeSubmitting && (
 										<div className="absolute inset-0 flex items-center justify-center rounded-xl border border-white/10 bg-slate-950/65 px-3 backdrop-blur-sm">
 											<div className="flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/80 px-3 py-1.5 text-[11px] font-bold text-white/85 shadow-lg">
@@ -2098,6 +2190,7 @@ function LandingPage() {
 					currentLedger={featuredCreator?.currentLedger}
 					launchPenaltyBps={featuredCreator?.launchPenaltyBps}
 					maxBuyQuantity={featuredCreator?.maxBuyQuantity ?? null}
+					holdingCap={featuredCreator?.holdingCap ?? featuredCreator?.maxHoldingCap ?? null}
 					keyConfig={featuredKeyConfig}
 					isKeyConfigLoading={isFeaturedKeyConfigLoading}
 					isSubmitting={tradeSubmitting}

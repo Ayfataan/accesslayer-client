@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router';
-import { courseService } from '@/services/course.service';
-import type { Course } from '@/services/course.service';
-import BondingCurveChart from '@/components/common/BondingCurveChart';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
+import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCreatorDetail, usePriceHistory } from '@/hooks/useCreators';
+import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
+import { useCreatorProfileStaleIndicator } from '@/hooks/useCreatorProfileStaleIndicator';
+import CreatorBreadcrumb from '@/components/common/CreatorBreadcrumb';
 import CreatorProfileHeader from '@/components/common/CreatorProfileHeader';
 import CreatorProfileInfoGrid from '@/components/common/CreatorProfileInfoGrid';
 import CreatorActivityFeed from '@/components/common/CreatorActivityFeed';
@@ -18,232 +20,552 @@ import DeprecationNotice from '@/components/common/DeprecationNotice';
 import SubscriptionAccessGate from '@/components/common/SubscriptionAccessGate';
 import { isKeyDeprecated } from '@/utils/keyDeprecation.utils';
 import { Button } from '@/components/ui/button';
-import { ShoppingCart } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { useAccount } from 'wagmi';
-import { useNetworkMismatch } from '@/hooks/useNetworkMismatch';
-import { FormInput } from '@/components/common/FormInput';
-import { cn } from '@/lib/utils';
+import { CreatorDashboardSkeleton } from '@/components/common/CreatorSkeleton';
+import { bpsToPercent, formatNumber } from '@/utils/numberFormat.utils';
+import {
+	resolveCreatorKeyPriceStroops,
+	formatDisplayKeyPrice,
+} from '@/utils/keyPriceDisplay.utils';
+import KeyDetailPageErrorBoundary from '@/components/common/KeyDetailPageErrorBoundary';
+import { ApiError } from '@/services/api.service';
+import WatchlistButton from '@/components/common/WatchlistButton';
+import { useNavigationTiming } from '@/hooks/useNavigationTiming';
+import { useKeyHolders } from '@/hooks/useKeyHolders';
+import { useProfileStore } from '@/hooks/useProfileStore';
+import { useWalletHoldings, useTradeMutation } from '@/hooks/useWallet';
+import CoCreatorSection from '@/components/creator/CoCreatorSection';
+import ShareTwitterButton from '@/components/common/ShareTwitterButton';
+import { PriceHistoryChart } from '@/components/common/PriceHistoryChart';
+import type { PriceHistoryInterval } from '@/services/course.service';
+import TradeDialog from '@/components/common/TradeDialog';
+import SpreadIndicator from '@/components/common/SpreadIndicator';
+import OraclePriceIndicator from '@/components/common/OraclePriceIndicator';
+import { useKeyOraclePrice } from '@/hooks/useKeyOraclePrice';
+import showToast from '@/utils/toast.util';
+import { getSignatureErrorMessage } from '@/utils/errorHandling.utils';
+import { usePurchaseConfetti } from '@/hooks/usePurchaseConfetti';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { useKeyTwap } from '@/hooks/useKeyTwap';
+import { useKeyStats } from '@/hooks/useKeyStats';
+import { useKeyUniqueTraders } from '@/hooks/useKeyUniqueTraders';
+import { useKeyConfig } from '@/hooks/useKeyConfig';
+import KeyStatsPanel from '@/components/common/KeyStatsPanel';
+import Skeleton from '@/components/ui/skeleton';
+import { Tooltip } from '@/components/ui/tooltip';
+import GraduatedCurveMilestoneChart from '@/components/common/GraduatedCurveMilestoneChart';
+import KeyDeprecationBanner from '@/components/common/KeyDeprecationBanner';
+import MergeProposalBanner from '@/components/common/MergeProposalBanner';
+import KeyBuybackModal from '@/components/common/KeyBuybackModal';
+import type { KeyBuybackReceipt } from '@/hooks/useKeyBuyback';
+import { usePerformanceBond } from '@/hooks/usePerformanceBond';
+import PerformanceBondPanel from '@/components/common/PerformanceBondPanel';
+import WhitelistStatusBadge from '@/components/common/WhitelistStatusBadge';
 
-const CreatorDetailPage: React.FC = () => {
+function CreatorDetailPageContent() {
+	usePurchaseConfetti();
+
 	const { id } = useParams<{ id: string }>();
+	const location = useLocation();
 	const navigate = useNavigate();
-	const { isConnected } = useAccount();
-	const { isMismatch: isNetworkMismatch, expectedChainName } = useNetworkMismatch();
+	const [hasMounted, setHasMounted] = useState(false);
+	const [buybackModalOpen, setBuybackModalOpen] = useState(false);
+	const [recentSettlement, setRecentSettlement] =
+		useState<KeyBuybackReceipt | null>(null);
+	const {
+		data: creator,
+		isLoading,
+		error,
+		isFetching,
+		refetch,
+	} = useCreatorDetail(id || '');
 
-	const [creator, setCreator] = useState<Course | null>(null);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
-	const [buyQuantity, setBuyQuantity] = useState<number>(1);
-	const [isProcessing, setIsProcessing] = useState(false);
+	const [interval, setInterval] = useState<PriceHistoryInterval>('24h');
+	const { data: priceHistory, isLoading: isPriceHistoryLoading } =
+		usePriceHistory(id || '', interval);
+
+	useNavigationTiming('creator_profile');
+	useDocumentTitle(creator ? `${creator.title} — AccessLayer` : null);
 
 	useEffect(() => {
-		const fetchCreator = async () => {
-			if (!id) {
-				setError('Creator ID is required');
-				setLoading(false);
-				return;
-			}
+		setHasMounted(true);
+	}, []);
 
-			try {
-				setLoading(true);
-				const data = await courseService.getCourse(id);
-				setCreator(data);
-			} catch (err) {
-				setError('Failed to load creator details');
-				console.error('Error fetching creator:', err);
-			} finally {
-				setLoading(false);
-			}
-		};
+	const recordVisit = useRecentlyViewed(state => state.addKey);
 
-		fetchCreator();
-	}, [id]);
-
-	const handleBuyQuantityChange = (value: string) => {
-		const numValue = parseInt(value.replace(/,/g, ''), 10);
-		if (!isNaN(numValue) && numValue >= BUY_QUANTITY_BOUNDS.MIN_QTY && numValue <= BUY_QUANTITY_BOUNDS.MAX_QTY) {
-			setBuyQuantity(numValue);
-		}
-	};
-
-	const handleBuy = async () => {
+	// Record this key as recently viewed once the detail data is available.
+	useEffect(() => {
 		if (!creator) return;
+		recordVisit({
+			id: creator.id,
+			title: creator.title || creator.name || 'Unnamed creator',
+			price: creator.price,
+			priceStroops: creator.priceStroops,
+			change24h: creator.change24h,
+			category: creator.category,
+			avatarUri: creator.avatarUri || creator.thumbnail,
+			walletAddress: creator.instructorId,
+		});
+	}, [creator, recordVisit]);
 
-		if (!isConnected) {
-			toast.error('Please connect your wallet to purchase keys', {
-				duration: 4000,
-			});
-			return;
-		}
+	const { holders, hasNextPage, isFetchingNextPage, fetchNextPage } =
+		useKeyHolders(id || '');
 
-		if (isNetworkMismatch) {
-			toast.error(`Switch to ${expectedChainName} to purchase keys`, {
-				duration: 4000,
-			});
-			return;
-		}
+	// User holdings for Share to X button
+	const profile = useProfileStore(state => state.profile);
+	const userAddress = profile?.id;
+	const { data: holdings = [] } = useWalletHoldings(userAddress ?? '');
+	const userPosition = holdings.find(h => h.creatorId === (id || ''));
+	const holdingsCount = userPosition?.quantity ?? 0;
+	// Per-user buy cooldown (#873): prefer the user's own position-level
+	// value; fall back to a creator-wide cooldown if the backend doesn't yet
+	// return a per-user one. Only shown for authenticated users.
+	const nextBuyAllowedAt =
+		userPosition?.nextBuyAllowedAt ?? creator?.nextBuyAllowedAt ?? null;
+	const { data: twap, isLoading: isTwapLoading } = useKeyTwap(id || '');
+	const {
+		data: keyStats,
+		isLoading: isKeyStatsLoading,
+		isError: isKeyStatsError,
+	} = useKeyStats(id || '');
+	const { data: uniqueTraders, isLoading: isUniqueTradersLoading } =
+		useKeyUniqueTraders(id || '');
+	// Live key config powers the bid-ask spread shown next to the buy
+	// action and inside the trade dialog (#951).
+	const { data: keyConfig, isLoading: isKeyConfigLoading } = useKeyConfig(
+		id || ''
+	);
+	const spotPriceStroops = creator
+		? resolveCreatorKeyPriceStroops(creator)
+		: null;
+	// External oracle price shown alongside the bonding-curve spot price so a
+	// significant divergence is visible before trading (#967).
+	const {
+		comparison: oracleComparison,
+		freshness: oracleFreshness,
+		source: oracleSource,
+		isLoading: isOracleLoading,
+	} = useKeyOraclePrice(id || '', { spotPriceStroops });
 
-		setIsProcessing(true);
+	// Performance bond status for creator key protection (#975)
+	const {
+		data: performanceBondData,
+		isLoading: isPerformanceBondLoading,
+		isError: isPerformanceBondError,
+	} = usePerformanceBond(id || '');
+	const performanceBond =
+		performanceBondData ?? creator?.performanceBond ?? null;
+
+	// Whitelist gate check for early access keys (#1031)
+	const isWhitelistGateActive = Boolean(
+		creator?.isWhitelistEnabled ?? creator?.whitelistEnabled ?? false
+	);
+	const isUserWhitelisted = userAddress
+		? Boolean(
+				(creator?.whitelist ?? []).some(
+					w => w.walletAddress.toUpperCase() === userAddress.toUpperCase()
+				) ||
+				(creator?.instructorId &&
+					creator.instructorId.toUpperCase() === userAddress.toUpperCase())
+		  )
+		: false;
+	const isLockedOut = isWhitelistGateActive && !isUserWhitelisted;
+
+	// Track stale data indicator
+	const { shouldShowBadge, handleRefetch } = useCreatorProfileStaleIndicator(
+		id || '',
+		isFetching,
+		() => refetch()
+	);
+
+	const [buyDialogOpen, setBuyDialogOpen] = useState(false);
+	const [tradeSubmitting, setTradeSubmitting] = useState(false);
+	const tradeMutation = useTradeMutation(userAddress ?? 'demo-wallet');
+
+	// #998 — trade cooldown for this key: fetched on page load and refetched
+	// after each completed buy so the Buy button shows a live countdown and
+	// stays disabled until the cooldown expires. The user's own position-level
+	// `nextBuyAllowedAt` (#873) is the fallback when the dedicated endpoint
+	// has no data.
+	const queryClient = useQueryClient();
+	const { data: tradeCooldownStatus } = useTradeCooldownStatus(id || '');
+	const tradeCooldown: ActiveTradeCooldown | null = resolveActiveTradeCooldown(
+		tradeCooldownStatus,
+		nextBuyAllowedAt
+	);
+	const isTradeCooldownActive = isActiveCooldown(tradeCooldown);
+
+	const handleConfirmBuy = async (
+		amount: number,
+		_pricePreview?: unknown,
+		slippage?: { maxPriceStroops: number | null } | null
+	) => {
+		setTradeSubmitting(true);
 		try {
-			// Simulate purchase - in real implementation, this would interact with the smart contract
-			await new Promise(resolve => setTimeout(resolve, 1500));
-			toast.success(`Successfully purchased ${buyQuantity} key(s) for ${creator.title}!`);
-			// Refresh creator data to get updated supply
-			const updatedCreator = await courseService.getCourse(id!);
-			setCreator(updatedCreator);
-		} catch (err) {
-			toast.error('Purchase failed. Please try again.');
-			console.error('Purchase error:', err);
+			showToast.loading(
+				`Submitting buy for ${amount} key${amount === 1 ? '' : 's'}...`
+			);
+			await tradeMutation.mutateAsync({
+				creatorId: id || '',
+				amount,
+				priceStroops: creator
+					? resolveCreatorKeyPriceStroops(creator)
+					: null,
+				price: creator?.price,
+				maxPriceStroops: slippage?.maxPriceStroops ?? null,
+			});
+			showToast.transactionSuccess(
+				'Trade confirmed',
+				`Bought ${formatNumber(amount)} key${amount === 1 ? '' : 's'} from ${
+					creator?.title || 'Creator'
+				}`
+			);
+			setBuyDialogOpen(false);
+		} catch (error) {
+			showToast.error(getSignatureErrorMessage(error));
 		} finally {
-			setIsProcessing(false);
+			// #998 — refetch the cooldown after the settled trade so the Buy
+			// button reflects the freshly committed cooldown window.
+			if (id) invalidateTradeCooldownStatus(queryClient, id);
+			setTradeSubmitting(false);
 		}
 	};
 
-	if (loading) {
+	if (isLoading) {
 		return (
-			<div className="min-h-screen bg-slate-950 flex items-center justify-center">
-				<div className="text-white/60">Loading creator details...</div>
-			</div>
+			<main className="min-h-screen bg-[#06111f] px-6 py-16 text-white md:px-12">
+				<div className="mx-auto max-w-7xl">
+					<CreatorDashboardSkeleton />
+				</div>
+			</main>
 		);
 	}
 
 	if (error || !creator) {
-		return (
-			<div className="min-h-screen bg-slate-950 flex items-center justify-center">
-				<div className="text-center">
-					<p className="text-red-400 mb-4">{error || 'Creator not found'}</p>
-					<Button onClick={() => navigate('/')} variant="outline">
-						Back to Marketplace
-					</Button>
-				</div>
-			</div>
-		);
+		const is404 =
+			!creator || (error instanceof ApiError && error.status === 404);
+		if (is404) {
+			return (
+				<main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-[#06111f] px-6 py-16 text-center text-white">
+					<h1 className="font-grotesque text-3xl font-black">
+						Creator not found
+					</h1>
+					<p className="text-white/70 font-jakarta">
+						We couldn't find a creator with that ID.
+					</p>
+					<Link to="/creators" className="text-amber-400 hover:underline">
+						Back to creators
+					</Link>
+				</main>
+			);
+		}
+		throw error;
 	}
 
-	const currentPriceStroops = resolveCreatorKeyPriceStroops(creator);
-	const currentSupply = creator.creatorShareSupply || 0;
+	const feeItems = [
+		{
+			label: 'Creator fee',
+			value: bpsToPercent(creator.creatorFeeBps),
+			helperText: 'Fee paid directly to the creator on each trade.',
+		},
+		{
+			label: 'Protocol fee',
+			value: bpsToPercent(creator.protocolFeeBps),
+			helperText: 'Fee paid to the platform for protocol maintenance.',
+		},
+	];
+
+	const statItems = [
+		{
+			label: 'Current Price',
+			value: formatDisplayKeyPrice(resolveCreatorKeyPriceStroops(creator)),
+		},
+		{
+			label: 'Key Supply',
+			value: formatNumber(creator.creatorShareSupply ?? 100),
+		},
+		{
+			label: '24h Volume',
+			value: formatDisplayKeyPrice(creator.volume24h ?? 0),
+		},
+		{
+			label: 'Total Holders',
+			value: formatNumber(
+				creator.creatorShareSupply
+					? Math.ceil(creator.creatorShareSupply / 2)
+					: 10
+			),
+		},
+	];
+
+	const chartData = (
+		creator.priceHistory && creator.priceHistory.length > 0
+			? creator.priceHistory
+			: [1000000, 1200000, 1500000, 1800000, 2000000]
+	).map((priceStroops, index) => ({
+		supply: (index + 1) * 20,
+		priceXLM: priceStroops / 10_000_000,
+	}));
+	const spotPrice = resolveCreatorKeyPriceStroops(creator);
+	const twapPrice = twap?.priceStroops ?? null;
+	const twapDelta =
+		twapPrice != null && spotPrice != null ? twapPrice - spotPrice : null;
+
+	const hasRealStakingData =
+		creator.stakingPoolBalance != null ||
+		creator.totalStaked != null ||
+		creator.recentFeeInflow != null;
+	const stakingStats = hasRealStakingData
+		? {
+				stakingPoolBalance: creator.stakingPoolBalance,
+				totalStaked: creator.totalStaked,
+				recentFeeInflow: creator.recentFeeInflow,
+			}
+		: {
+				stakingPoolBalance: 4820,
+				totalStaked: creator.creatorShareSupply
+					? Math.floor(creator.creatorShareSupply / 4)
+					: 25,
+				recentFeeInflow: 62,
+			};
 
 	return (
-		<div className="min-h-screen bg-slate-950">
-			<CreatorProfileHeader
-				name={creator.title}
-				handle={creator.instructorId}
-				creatorId={creator.id}
-				avatarUrl={creator.thumbnail}
-				isVerified={creator.isVerified}
-				bio={creator.description}
-			/>
+		<main className="min-h-screen bg-[#06111f] px-6 py-16 text-white md:px-12">
+			<div className="mx-auto max-w-7xl space-y-8">
+				<CreatorBreadcrumb
+					parentLabel="Marketplace"
+					parentHref="/"
+					currentLabel={`${creator.title} Profile`}
+				/>
+				{/* Key deprecation notice & guaranteed buyback flow (#923) */}
+				{isKeyDeprecated(creator) && (
+					<KeyDeprecationBanner
+						creator={creator}
+						userAddress={userAddress}
+						holdingsCount={holdingsCount}
+						onInitiateBuyback={() => setBuybackModalOpen(true)}
+						recentSettlement={recentSettlement}
+					/>
+				)}
+				{/* Merge proposal voting for source key holders (#983) */}
+				<MergeProposalBanner
+					sourceKeyId={id || ''}
+					holdingsCount={holdingsCount}
+					isConnected={Boolean(userAddress)}
+				/>
+				<div className="flex items-start gap-3">
+					<div className="min-w-0 flex-1">
+						<CreatorProfileHeader
+							name={creator.title}
+							handle={creator.socialHandle || creator.instructorId}
+							creatorId={creator.id}
+							isVerified={creator.isVerified}
+							avatarUrl={creator.thumbnail}
+							bio={creator.description}
+							priceStroops={resolveCreatorKeyPriceStroops(creator)}
+							showBackButton={hasMounted}
+							onBack={() => {
+								if (
+									window.history.length > 1 &&
+									location.key !== 'default'
+								) {
+									navigate(-1);
+									return;
+								}
+								navigate('/creators');
+							}}
+						/>
+					</div>
+					<WatchlistButton
+						creator={creator}
+						labelName={creator.title}
+						// ≥44px tap target on mobile (WCAG 2.5.5); compact on sm+.
+						className="mt-3 size-11 shrink-0 sm:size-9"
+					/>
+				</div>
 
-			<main className="max-w-7xl mx-auto px-6 py-8 md:px-12">
-				<div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-					{/* Left column - Chart and price info */}
-					<div className="lg:col-span-2 space-y-6">
-						<div className="bg-white/5 rounded-2xl border border-white/10 p-6">
-							<h2 className="text-xl font-bold text-white mb-4">Bonding Curve Price Chart</h2>
-							<BondingCurveChart
-								currentSupply={currentSupply}
-								currentPriceStroops={currentPriceStroops || 0}
-								buyQuantity={buyQuantity}
-								className="w-full"
-							/>
-						</div>
+				{/* Historical Price Chart */}
+				<PriceHistoryChart
+					data={priceHistory}
+					interval={interval}
+					isLoading={isPriceHistoryLoading}
+					onIntervalChange={setInterval}
+				/>
 
-						<div className="bg-white/5 rounded-2xl border border-white/10 p-6">
-							<h3 className="text-lg font-bold text-white mb-4">About this creator</h3>
-							<p className="text-white/70 leading-relaxed">
-								{creator.description || 'No description available.'}
+				{/* 4 Stat Cards */}
+				<div data-testid="creator-stat-cards">
+					<CreatorProfileStatRow items={statItems} />
+				</div>
+				{/* Key Stats Panel (#952) */}
+				<KeyStatsPanel
+					stats={keyStats}
+					isLoading={isKeyStatsLoading}
+					isError={isKeyStatsError}
+					uniqueTraders={uniqueTraders}
+					isUniqueTradersLoading={isUniqueTradersLoading}
+				/>
+				{/* Performance Bond Status Panel (#975) */}
+				<PerformanceBondPanel
+					bond={performanceBond}
+					isLoading={isPerformanceBondLoading}
+					isError={isPerformanceBondError}
+				/>
+				{/* Deprecation Notice and Buy Action on Key Detail Page */}
+				{isKeyDeprecated(creator) && (
+					<div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4">
+						<DeprecationNotice reason={creator.deprecationReason} />
+					</div>
+				)}
+				{/*
+				 * Key Purchase CTA row (#1055): stacks vertically on mobile so the
+				 * buy action stays reachable and full-width with a 44px tap target;
+				 * desktop keeps the horizontal layout.
+				 */}
+				<div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+					<div className="min-w-0">
+						<div className="flex items-center gap-2">
+							<p className="text-xs font-semibold uppercase tracking-wider text-white/55">
+								Key Purchase
 							</p>
-							<div className="mt-4 flex flex-wrap gap-2">
-								<span className="px-3 py-1 bg-white/10 rounded-full text-sm text-white/80">
-									{creator.category || 'General'}
-								</span>
-								<span className="px-3 py-1 bg-white/10 rounded-full text-sm text-white/80">
-									{creator.level || 'Open'}
-								</span>
-							</div>
+							{isLockedOut && <WhitelistStatusBadge />}
+						</div>
+						<p className="mt-0.5 text-sm text-white/80">
+							{isKeyDeprecated(creator)
+								? 'Key is deprecated. New buys are disabled.'
+								: isLockedOut
+								? 'Early access is restricted to approved whitelisted wallets.'
+								: 'Purchase keys for this creator.'}
+						</p>
+						{/* Configurable bid-ask spread between buy and sell price (#951) */}
+						<SpreadIndicator
+							className="mt-2"
+							buyPriceStroops={keyConfig?.buyPriceStroops}
+							sellPriceStroops={keyConfig?.sellPriceStroops}
+							spreadStroops={keyConfig?.spreadStroops}
+							spreadBps={keyConfig?.spreadBps}
+							isLoading={isKeyConfigLoading}
+						/>
+						{/* Oracle reference price next to the curve spot price (#967) */}
+						<OraclePriceIndicator
+							className="mt-2"
+							comparison={oracleComparison}
+							freshness={oracleFreshness}
+							source={oracleSource}
+							isLoading={isOracleLoading}
+						/>
+					</div>
+					{isKeyDeprecated(creator) ? (
+						<Button
+							disabled
+							data-testid="key-detail-buy-button"
+							variant="outline"
+							// ≥44px tap target on mobile; full-width, compact on sm+ (#1055).
+							className="min-h-11 w-full rounded-xl font-bold sm:h-10 sm:min-h-0 sm:w-auto"
+						>
+							Buy Disabled (Deprecated)
+						</Button>
+					) : (
+						<TradeCooldownButton
+							cooldown={tradeCooldown}
+							label="Buy Key"
+							// ≥44px tap target on mobile; full-width, compact on sm+ (#1055).
+							className="min-h-11 w-full rounded-xl font-bold sm:h-10 sm:min-h-0 sm:w-auto"
+							onClick={() => setBuyDialogOpen(true)}
+							buttonProps={{
+								'data-testid': 'key-detail-buy-button',
+							}}
+						/>
+					)}
+				</div>
+				{/* Buy Cooldown Countdown (only meaningful for authenticated users) */}
+				{userAddress && !isTradeCooldownActive && (
+					<BuyCooldownCountdown nextBuyAllowedAt={nextBuyAllowedAt} />
+				)}
+				{/* Share to X Button (only visible for authenticated holders) */}
+				<div className="flex justify-end">
+					<ShareTwitterButton
+						creatorId={creator.id}
+						creatorName={creator.title}
+						priceXlm={formatDisplayKeyPrice(
+							resolveCreatorKeyPriceStroops(creator)
+						).replace(' XLM', '')}
+						userAddress={userAddress}
+						userHoldingsCount={holdingsCount}
+					/>
+				</div>
+				{isTwapLoading ? (
+					<div
+						className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4"
+						data-testid="twap-price"
+					>
+						<div aria-label="Loading 24 hour TWAP" role="status">
+							<Skeleton className="h-3 w-24" />
+							<Skeleton className="mt-2 h-6 w-32" />
 						</div>
 					</div>
-
-					{/* Right column - Purchase card */}
-					<div className="lg:col-span-1">
-						<div className="bg-white/5 rounded-2xl border border-white/10 p-6 sticky top-24">
-							<h2 className="text-xl font-bold text-white mb-6">Purchase Keys</h2>
-
-							<div className="space-y-4">
-								<div>
-									<label className="block text-sm font-medium text-white/80 mb-2">
-										Current Price
-									</label>
-									<div className="text-2xl font-bold text-amber-400">
-										{formatCreatorKeyPriceDisplay(creator)}
-									</div>
+				) : twapPrice != null ? (
+					<div
+						className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4"
+						data-testid="twap-price"
+					>
+						<div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+							<div>
+								<div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white/55">
+									<span
+										className={
+											twapDelta != null
+												? twapDelta < 0
+													? 'text-emerald-400'
+													: 'text-rose-400'
+												: ''
+										}
+									>
+										TWAP (24h)
+									</span>
+									<Tooltip content="Time-weighted average price over the past 24 hours. Less sensitive to short-term manipulation.">
+										<button
+											type="button"
+											aria-label="What is 24 hour TWAP?"
+											className="-m-1 p-1 text-white/50"
+										>
+											ⓘ
+										</button>
+									</Tooltip>
 								</div>
-
-								<div>
-									<label className="block text-sm font-medium text-white/80 mb-2">
-										Current Supply
-									</label>
-									<KeySupplyBadge supply={currentSupply} />
+								<div className="mt-1 text-xl font-bold text-white">
+									{formatDisplayKeyPrice(twapPrice)}
 								</div>
-
-								<div>
-									<FormInput
-										id="buyQuantity"
-										label="Quantity to Buy"
-										type="number"
-										value={buyQuantity}
-										onChange={handleBuyQuantityChange}
-										className="w-full"
-									/>
-									<p className="text-xs text-white/40 mt-1">
-										Min: {BUY_QUANTITY_BOUNDS.MIN_QTY}, Max: {BUY_QUANTITY_BOUNDS.MAX_QTY}
-									</p>
-								</div>
-
-								<Button
-									onClick={handleBuy}
-									disabled={isProcessing || isNetworkMismatch}
-									className={cn(
-										'w-full rounded-xl font-bold',
-										!isConnected && 'border-white/10 hover:bg-white/5'
-									)}
-									size="lg"
+							</div>
+							{twapDelta != null && (
+								<span
+									className={
+										twapDelta < 0
+											? 'text-sm font-semibold tabular-nums text-emerald-400'
+											: 'text-sm font-semibold tabular-nums text-rose-400'
+									}
 								>
-									{isProcessing ? (
-										'Processing...'
-									) : (
-										<>
-											<ShoppingCart className="mr-2" />
-											Buy {buyQuantity} Key{buyQuantity > 1 ? 's' : ''}
-										</>
-									)}
-								</Button>
-
-								{isNetworkMismatch && (
-									<p className="text-xs text-red-400 text-center">
-										Switch to {expectedChainName} to enable purchases
-									</p>
-								)}
-
-								{!isConnected && (
-									<p className="text-xs text-white/40 text-center">
-										Connect your wallet to purchase keys
-									</p>
-								)}
-							</div>
-
-							<div className="mt-6 pt-6 border-t border-white/10">
-								<h3 className="text-sm font-medium text-white/80 mb-3">Price Impact Preview</h3>
-								<div className="text-sm text-white/60">
-									<p>
-										Buying {buyQuantity} key{buyQuantity > 1 ? 's' : ''} will move you along the bonding curve,
-										increasing the price for future buyers.
-									</p>
-								</div>
-							</div>
+									{twapDelta < 0 ? '▼' : '▲'}{' '}
+									{formatDisplayKeyPrice(Math.abs(twapDelta))} vs spot
+								</span>
+							)}
 						</div>
 					</div>
+				) : null}
+				{/* Staking Rewards */}
+				<StakingRewardsSection {...stakingStats} isLoading={isLoading} />
+
+				{/* Price Curve Chart */}
+				<div
+					className="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 shadow-2xl backdrop-blur-md md:p-8"
+					data-testid="creator-chart-container"
+				>
+					<h2 className="font-grotesque text-xl font-black tracking-tight text-white mb-6">
+						Price Curve
+					</h2>
+				<BondingCurveChart
+					data={chartData}
+					currentSupply={creator.creatorShareSupply ?? 100}
+					height={300}
+				/>
 				</div>
 
 				{/* Gated Content */}
@@ -307,6 +629,12 @@ const CreatorDetailPage: React.FC = () => {
 			</div>
 		</main>
 	);
-};
+}
 
-export default CreatorDetailPage;
+export default function CreatorDetailPage() {
+	return (
+		<KeyDetailPageErrorBoundary>
+			<CreatorDetailPageContent />
+		</KeyDetailPageErrorBoundary>
+	);
+}
