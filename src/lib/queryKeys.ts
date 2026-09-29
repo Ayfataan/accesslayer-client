@@ -129,6 +129,11 @@ export const queryKeys = {
 		summary: (wallet: string) => ['referrals', wallet, 'summary'] as const,
 		wallets: (wallet: string) => ['referrals', wallet, 'wallets'] as const,
 	},
+	staking: {
+		all: () => ['staking'] as const,
+		dashboard: (wallet: string) =>
+			['staking', wallet, 'dashboard'] as const,
+	},
 	atomicSwap: {
 		all: () => ['atomic-swap'] as const,
 		proposal: (proposalId: string) =>

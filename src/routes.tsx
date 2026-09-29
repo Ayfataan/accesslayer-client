@@ -16,6 +16,7 @@ import GovernancePage from './pages/GovernancePage';
 import ProposalDetailPage from './pages/ProposalDetailPage';
 import ReferralDashboardPage from './pages/ReferralDashboardPage';
 import CreateCreatorKeyPage from './pages/CreateCreatorKeyPage';
+import StakingDashboardPage from './pages/StakingDashboardPage';
 import RevenueDistributionHistoryPage from './pages/RevenueDistributionHistoryPage';
 import BundleManagementPage from './pages/BundleManagementPage';
 import CreatorRevenueDashboardPage from './pages/CreatorRevenueDashboardPage';
@@ -150,6 +151,10 @@ export const routes = [
 			{
 				path: '/create-key',
 				element: <CreateCreatorKeyPage />,
+			},
+			{
+				path: '/staking',
+				element: <StakingDashboardPage />,
 			},
 			{
 				path: '/swap/create',
