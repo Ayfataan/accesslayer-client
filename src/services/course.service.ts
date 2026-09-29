@@ -390,6 +390,7 @@ export interface AuctionBidEntry {
 	amount: number;
 	/** ISO timestamp when the bid was placed. */
 	placedAt: string;
+}
 
 /**
  * Unique trader count for a creator key (#1020): distinct wallets that have
@@ -560,6 +561,10 @@ class CourseService extends BaseApiService {
 				APIResponse<AuctionBidEntry[]>
 			>(`/keys/${keyId}/auction/bids`);
 			return response.data.data ?? [];
+		} catch (error) {
+			throw this.handleError(error);
+		}
+	}
 
 	// Get the unique trader count - GET /keys/:keyId/unique-traders
 	async getKeyUniqueTraders(keyId: string): Promise<KeyUniqueTraders> {
@@ -568,7 +573,6 @@ class CourseService extends BaseApiService {
 				`/keys/${keyId}/unique-traders`
 			);
 			return response.data.data;
-
 		} catch (error) {
 			throw this.handleError(error);
 		}
