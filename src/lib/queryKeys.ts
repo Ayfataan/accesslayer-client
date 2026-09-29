@@ -101,6 +101,9 @@ export const queryKeys = {
 		multiSigHistory: () => ['admin', 'multisig', 'history'] as const,
 		aclWhitelist: () => ['admin', 'acl', 'whitelist'] as const,
 		aclHistory: () => ['admin', 'acl', 'history'] as const,
+		upgradeProxyStatus: () => ['admin', 'proxy', 'status'] as const,
+		upgradeProxyPending: () => ['admin', 'proxy', 'pending'] as const,
+		upgradeProxyHistory: () => ['admin', 'proxy', 'history'] as const,
 	},
 	governance: {
 		all: () => ['governance'] as const,
