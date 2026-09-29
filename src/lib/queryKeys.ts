@@ -66,6 +66,8 @@ export const queryKeys = {
 	},
 	wallet: {
 		holdings: (address: string) => ['wallet', address, 'holdings'] as const,
+		portfolioHistory: (address: string, range: string) =>
+			['wallet', address, 'portfolioHistory', range] as const,
 		activity: (address: string) => ['wallet', address, 'activity'] as const,
 		tradeHistory: (address: string) =>
 			['wallet', address, 'tradeHistory'] as const,
