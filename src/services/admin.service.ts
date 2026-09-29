@@ -1,5 +1,5 @@
 // src/services/admin.service.ts
-import { BaseApiService, type APIResponse } from './api.service';
+import { BaseApiService, ApiError, type APIResponse } from './api.service';
 
 /**
  * A single approved contract address permitted to call the price oracle.
@@ -22,6 +22,48 @@ export interface AclHistoryEvent {
 	address: string;
 	functions?: string[];
 	timestamp: string;
+	admin: string;
+}
+
+export type AdminAction =
+	| 'upgrade-proxy'
+	| 'emergency-freeze'
+	| string;
+
+export interface UpgradeProxyStatus {
+	/**
+	 * The current logic/implementation address the proxy points to, or null
+	 * when the backend has no data yet.
+	 */
+	logicAddress: string | null;
+	/** Whether the emergency freeze is currently active. */
+	isFrozen: boolean;
+}
+
+export interface PendingUpgrade {
+	id: string;
+	/** The new logic address proposed for the upgrade. */
+	newImplementation: string;
+	/** ISO timestamp or epoch when the timelock ends and the upgrade can be executed. */
+	timelockEndsAt: string | number;
+	/** Current signatures collected toward the multi-sig threshold. */
+	signatures: MultiSigSignature[];
+	requiredSignatures: number;
+	totalSigners: number;
+	/** Off-chain payload signed by admin wallets before execution. */
+	payload: string;
+	createdAt: string;
+}
+
+export interface UpgradeHistoryEvent {
+	id: string;
+	/** The logic address before the upgrade. */
+	previousImplementation: string;
+	/** The logic address after the upgrade. */
+	newImplementation: string;
+	/** ISO timestamp when the upgrade was executed. */
+	executedAt: string;
+	/** The admin wallet that executed the upgrade. */
 	admin: string;
 }
 
@@ -327,6 +369,60 @@ class AdminService extends BaseApiService {
 			throw this.handleError(error);
 		}
 	}
+
+	async getUpgradeProxyStatus(): Promise<UpgradeProxyStatus> {
+		// TODO(#1032): Backend endpoint GET /admin/proxy/status is not yet implemented.
+		// When the endpoint exists, call `this.api.get<APIResponse<UpgradeProxyStatus>>('/admin/proxy/status')`
+		// and return the parsed status. Until then, return a safe empty state so the
+		// panel renders without fake data.
+		return { logicAddress: null, isFrozen: false };
+	}
+
+	async getPendingUpgrade(): Promise<PendingUpgrade | null> {
+		// TODO(#1032): Backend endpoint GET /admin/proxy/pending-upgrade is not yet implemented.
+		// When the endpoint exists, call `this.api.get<APIResponse<PendingUpgrade>>('/admin/proxy/pending-upgrade')`
+		// and return the parsed proposal. Until then, return null (no pending upgrade).
+		return null;
+	}
+
+	async executeUpgrade(
+		signature: string,
+		signer: string
+	): Promise<UpgradeHistoryEvent | null> {
+		// TODO(#1032): Backend endpoint POST /admin/proxy/execute is not yet implemented.
+		// When the endpoint exists, call `this.api.post('/admin/proxy/execute', { signature, signer })`
+		// and return the parsed result. Until then, throw so the UI can surface the error.
+		void signature;
+		void signer;
+		throw new ApiError(
+			'Upgrade execution is not yet available — the backend endpoint POST /admin/proxy/execute has not been implemented.',
+			501
+		);
+	}
+
+	async toggleEmergencyFreeze(
+		isFrozen: boolean,
+		signature: string,
+		signer: string
+	): Promise<UpgradeProxyStatus> {
+		// TODO(#1032): Backend endpoint POST /admin/proxy/freeze is not yet implemented.
+		// When the endpoint exists, call `this.api.post('/admin/proxy/freeze', { isFrozen, signature, signer })`
+		// and return the updated status. Until then, throw so the UI can surface the error.
+		void isFrozen;
+		void signature;
+		void signer;
+		throw new ApiError(
+			'Emergency freeze toggle is not yet available — the backend endpoint POST /admin/proxy/freeze has not been implemented.',
+			501
+		);
+	}
+
+	async getUpgradeHistory(): Promise<UpgradeHistoryEvent[]> {
+		// TODO(#1032): Backend endpoint GET /admin/proxy/history is not yet implemented.
+		// When the endpoint exists, call `this.api.get<APIResponse<UpgradeHistoryEvent[]>>('/admin/proxy/history')`
+		// and return the parsed history. Until then, return an empty array.
+		return [];
+	}
 }
 
 export const adminService = new AdminService();
@@ -367,4 +463,31 @@ export async function deleteAclContract(address: string): Promise<void> {
 
 export async function fetchAclHistory(): Promise<AclHistoryEvent[]> {
 	return adminService.getAclHistory();
+}
+
+export async function fetchUpgradeProxyStatus(): Promise<UpgradeProxyStatus> {
+	return adminService.getUpgradeProxyStatus();
+}
+
+export async function fetchPendingUpgrade(): Promise<PendingUpgrade | null> {
+	return adminService.getPendingUpgrade();
+}
+
+export async function executeUpgradeAction(
+	signature: string,
+	signer: string
+): Promise<UpgradeHistoryEvent | null> {
+	return adminService.executeUpgrade(signature, signer);
+}
+
+export async function toggleEmergencyFreezeAction(
+	isFrozen: boolean,
+	signature: string,
+	signer: string
+): Promise<UpgradeProxyStatus> {
+	return adminService.toggleEmergencyFreeze(isFrozen, signature, signer);
+}
+
+export async function fetchUpgradeHistory(): Promise<UpgradeHistoryEvent[]> {
+	return adminService.getUpgradeHistory();
 }
