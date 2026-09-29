@@ -13,18 +13,9 @@ import CreatorProfileStatRow from '@/components/common/CreatorProfileStatRow';
 import BondingCurveChart from '@/components/common/BondingCurveChart';
 import KeySimulationTool from '@/components/common/KeySimulationTool';
 import BuyCooldownCountdown from '@/components/common/BuyCooldownCountdown';
-import TradeCooldownButton from '@/components/common/TradeCooldownButton';
-import {
-	useTradeCooldownStatus,
-	invalidateTradeCooldownStatus,
-	resolveActiveTradeCooldown,
-} from '@/hooks/useTradeCooldownStatus';
-import type { ActiveTradeCooldown } from '@/utils/tradeCooldown.utils';
-import { isActiveCooldown } from '@/utils/tradeCooldown.utils';
-import KeyHolderList from '@/components/common/KeyHolderList';
-import HolderConcentrationChart from '@/components/common/HolderConcentrationChart';
 import StakingRewardsSection from '@/components/common/StakingRewardsSection';
 import DeprecationNotice from '@/components/common/DeprecationNotice';
+import SubscriptionAccessGate from '@/components/common/SubscriptionAccessGate';
 import { isKeyDeprecated } from '@/utils/keyDeprecation.utils';
 import { Button } from '@/components/ui/button';
 import { CreatorDashboardSkeleton } from '@/components/common/CreatorSkeleton';
@@ -73,7 +64,11 @@ import type { KeyBuybackReceipt } from '@/hooks/useKeyBuyback';
 import { usePerformanceBond } from '@/hooks/usePerformanceBond';
 import PerformanceBondPanel from '@/components/common/PerformanceBondPanel';
 import WhitelistStatusBadge from '@/components/common/WhitelistStatusBadge';
-
+import { useTradeCooldownStatus, invalidateTradeCooldownStatus, resolveActiveTradeCooldown } from '@/hooks/useTradeCooldownStatus';
+import { isActiveCooldown, type ActiveTradeCooldown } from '@/utils/tradeCooldown.utils';
+import TradeCooldownButton from '@/components/common/TradeCooldownButton';
+import KeyHolderList from '@/components/common/KeyHolderList';
+import HolderConcentrationChart from '@/components/common/HolderConcentrationChart';
 function CreatorDetailPageContent() {
 	usePurchaseConfetti();
 
@@ -418,7 +413,8 @@ function CreatorDetailPageContent() {
 					<WatchlistButton
 						creator={creator}
 						labelName={creator.title}
-						className="mt-3 shrink-0"
+						// ≥44px tap target on mobile (WCAG 2.5.5); compact on sm+.
+						className="mt-3 size-11 shrink-0 sm:size-9"
 					/>
 				</div>
 
@@ -455,8 +451,13 @@ function CreatorDetailPageContent() {
 						<DeprecationNotice reason={creator.deprecationReason} />
 					</div>
 				)}
-				<div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4">
-					<div>
+				{/*
+				 * Key Purchase CTA row (#1055): stacks vertically on mobile so the
+				 * buy action stays reachable and full-width with a 44px tap target;
+				 * desktop keeps the horizontal layout.
+				 */}
+				<div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+					<div className="min-w-0">
 						<div className="flex items-center gap-2">
 							<p className="text-xs font-semibold uppercase tracking-wider text-white/55">
 								Key Purchase
@@ -493,7 +494,8 @@ function CreatorDetailPageContent() {
 							disabled
 							data-testid="key-detail-buy-button"
 							variant="outline"
-							className="rounded-xl font-bold"
+							// ≥44px tap target on mobile; full-width, compact on sm+ (#1055).
+							className="min-h-11 w-full rounded-xl font-bold sm:h-10 sm:min-h-0 sm:w-auto"
 						>
 							Buy Disabled (Deprecated)
 						</Button>
@@ -501,7 +503,8 @@ function CreatorDetailPageContent() {
 						<TradeCooldownButton
 							cooldown={tradeCooldown}
 							label="Buy Key"
-							className="rounded-xl font-bold"
+							// ≥44px tap target on mobile; full-width, compact on sm+ (#1055).
+							className="min-h-11 w-full rounded-xl font-bold sm:h-10 sm:min-h-0 sm:w-auto"
 							onClick={() => setBuyDialogOpen(true)}
 							buttonProps={{
 								'data-testid': 'key-detail-buy-button',
@@ -558,7 +561,7 @@ function CreatorDetailPageContent() {
 						className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4"
 						data-testid="twap-price"
 					>
-						<div className="flex items-center justify-between gap-4">
+						<div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
 							<div>
 								<div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white/55">
 									<span
@@ -576,7 +579,7 @@ function CreatorDetailPageContent() {
 										<button
 											type="button"
 											aria-label="What is 24 hour TWAP?"
-											className="text-white/50"
+											className="-m-1 p-1 text-white/50"
 										>
 											ⓘ
 										</button>
@@ -590,8 +593,8 @@ function CreatorDetailPageContent() {
 								<span
 									className={
 										twapDelta < 0
-											? 'text-sm font-semibold text-emerald-400'
-											: 'text-sm font-semibold text-rose-400'
+											? 'text-sm font-semibold tabular-nums text-emerald-400'
+											: 'text-sm font-semibold tabular-nums text-rose-400'
 									}
 								>
 									{twapDelta < 0 ? '▼' : '▲'}{' '}
@@ -736,6 +739,25 @@ function CreatorDetailPageContent() {
 						}}
 					/>
 				</div>
+
+				{/* Gated Content */}
+				<div className="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 shadow-2xl backdrop-blur-md md:p-8">
+					<h2 className="font-grotesque text-xl font-black tracking-tight text-white mb-6">
+						Exclusive Content
+					</h2>
+					<SubscriptionAccessGate
+						creatorId={creator.id}
+						minimumHolding={1}
+						onBuyClick={() => setBuyDialogOpen(true)}
+					>
+						<div className="rounded-xl bg-white/[0.03] p-6 border border-white/10">
+							<p className="text-white/80">
+								🎉 Welcome to the exclusive content section! Here you can access premium videos, articles, and perks from {creator.title || creator.name || 'this creator'}.
+							</p>
+						</div>
+					</SubscriptionAccessGate>
+				</div>
+
 				<div className="mt-8 rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 shadow-2xl backdrop-blur-md md:p-8">
 					<h2 className="font-grotesque text-xl font-black tracking-tight text-white mb-6">
 						Activity
@@ -750,15 +772,14 @@ function CreatorDetailPageContent() {
 						creatorId={creator.id}
 						creatorTitle={creator.title || creator.name || 'Creator Key'}
 						holdingsCount={holdingsCount}
-						buybackPriceStroops={
-							resolveCreatorKeyPriceStroops(creator) ?? 0
-						}
+						buybackPriceStroops={resolveCreatorKeyPriceStroops(creator) ?? 0}
 						userAddress={userAddress}
 						onSettled={receipt => {
 							setRecentSettlement(receipt);
 						}}
 					/>
 				)}
+
 				{creator && (
 					<TradeDialog
 						open={buyDialogOpen}
@@ -768,7 +789,6 @@ function CreatorDetailPageContent() {
 						keyPriceStroops={resolveCreatorKeyPriceStroops(creator)}
 						currentSupply={creator.creatorShareSupply}
 						maxBuyQuantity={creator.maxBuyQuantity}
-						holdingCap={creator.holdingCap ?? creator.maxHoldingCap}
 						launchPenaltyBps={creator.launchPenaltyBps}
 						keyConfig={keyConfig}
 						isKeyConfigLoading={isKeyConfigLoading}

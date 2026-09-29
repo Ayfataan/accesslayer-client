@@ -1,5 +1,6 @@
 // src/services/course.service.ts
 import { BaseApiService, ApiError, type APIResponse } from './api.service';
+import type { CreatorSocialLinks } from '@/types/creatorProfile';
 import { cacheManager } from '@/utils/cache.utils';
 
 export interface Course {
@@ -17,8 +18,12 @@ export interface Course {
 	category: string;
 	level: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
 	socialHandle?: string;
+	/** Optional creator-published social links (#1054). */
+	socialLinks?: CreatorSocialLinks | null;
 	isVerified?: boolean;
 	volume24h?: number;
+	/** Cumulative all-time traded volume in stroops, when the API reports it. */
+	totalVolume?: number | null;
 	change24h?: number;
 	joinedAt?: string;
 	/** ISO timestamp for when the creator key was created. */
@@ -128,6 +133,13 @@ export interface Course {
 	deprecationReason?: string | null;
 	/** Performance bond status for creator key protection (#975). */
 	performanceBond?: PerformanceBond | null;
+	/**
+	 * Key-level circuit breaker price impact threshold in basis points (e.g. 1500 = 15%) (#1034).
+	 * Buy orders whose price impact equals or exceeds this threshold will be halted.
+	 */
+	circuitBreakerThresholdBps?: number | null;
+	/** Key-level circuit breaker price impact threshold in percent (e.g. 15 = 15%) (#1034). */
+	circuitBreakerThresholdPercent?: number | null;
 	/** Whether the early access whitelist gate is enabled for this creator key (#1031). */
 	isWhitelistEnabled?: boolean;
 	whitelistEnabled?: boolean;
@@ -194,9 +206,14 @@ export interface KeyConfig {
 	spreadStroops?: number | null;
 	/** Spread expressed in basis points of the buy price, when reported. */
 	spreadBps?: number | null;
-	/** Maximum holding cap configured for this key (#1015); null means unlimited. */
+	/** Maximum holding cap per wallet, when reported by the key config endpoint (#1015). */
 	holdingCap?: number | null;
+	/** Alias for holdingCap — maximum holding cap per wallet (#1015). */
 	maxHoldingCap?: number | null;
+	/** Key-level circuit breaker price impact threshold in basis points (#1034). */
+	circuitBreakerThresholdBps?: number | null;
+	/** Key-level circuit breaker price impact threshold in percent (#1034). */
+	circuitBreakerThresholdPercent?: number | null;
 }
 
 /**
