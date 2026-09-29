@@ -1,5 +1,6 @@
 // src/services/course.service.ts
 import { BaseApiService, ApiError, type APIResponse } from './api.service';
+import type { CreatorSocialLinks } from '@/types/creatorProfile';
 import { cacheManager } from '@/utils/cache.utils';
 
 export interface Course {
@@ -17,8 +18,12 @@ export interface Course {
 	category: string;
 	level: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
 	socialHandle?: string;
+	/** Optional creator-published social links (#1054). */
+	socialLinks?: CreatorSocialLinks | null;
 	isVerified?: boolean;
 	volume24h?: number;
+	/** Cumulative all-time traded volume in stroops, when the API reports it. */
+	totalVolume?: number | null;
 	change24h?: number;
 	joinedAt?: string;
 	/** ISO timestamp for when the creator key was created. */
@@ -29,6 +34,9 @@ export interface Course {
 	protocolFeeBps?: number;
 	/** Max keys that can be bought in a single transaction; null means no limit. */
 	maxBuyQuantity?: number | null;
+	/** Maximum holding cap per wallet configured by creator (#1015); null or undefined means unlimited. */
+	holdingCap?: number | null;
+	maxHoldingCap?: number | null;
 	/** Last up to 7 price history points in stroops, oldest to newest. */
 	priceHistory?: number[];
 	holderCount?: number;
@@ -65,6 +73,25 @@ export interface Course {
 	/** Keys sold through the auction so far. */
 	auctionSold?: number;
 	/**
+	 * ISO timestamp for when the pre-launch bidding window closes and the
+	 * key goes live on the bonding curve (#924). When absent, the auction
+	 * ends once `auctionSold` reaches `auctionSupply`.
+	 */
+	auctionEndsAt?: string;
+	/**
+	 * Minimum amount (XLM) a new bid must exceed the current highest bid by
+	 * (#924). When absent, a 5% increment over the highest bid is assumed.
+	 */
+	auctionMinIncrement?: number;
+	/**
+	 * Current highest bid in XLM (#924). When `auctionBids` is present this
+	 * is usually derived from the history instead; the explicit field is the
+	 * source of truth for auctions whose history hasn't been loaded yet.
+	 */
+	auctionHighestBid?: number;
+	/** Pre-launch auction bid history, newest first (#924). */
+	auctionBids?: AuctionBidEntry[];
+	/**
 	 * Early-sell penalty in basis points (0–2000 = 0%–20%).
 	 * Applied to sells within the first 7 days after key creation.
 	 */
@@ -99,6 +126,18 @@ export interface Course {
 	 */
 	nextBuyAllowedAt?: number | string | null;
 	/**
+	 * Cooldown policy for this key in seconds (#998): how long after a
+	 * trade the next trade of the same key is blocked. Drives the tooltip
+	 * copy on the disabled trade buttons. Absent when unknown.
+	 */
+	tradeCooldownSeconds?: number | null;
+	/**
+	 * Cooldown policy for this key expressed in Stellar ledgers (~5 seconds
+	 * per ledger), as configured via the contract's `set_buy_cooldown`.
+	 * Preferred over `tradeCooldownSeconds` when both are present.
+	 */
+	tradeCooldownLedgers?: number | null;
+	/**
 	 * Whether this key has been marked deprecated (#871) — e.g. the creator
 	 * left the platform or the key was superseded. Deprecated keys can no
 	 * longer be bought/sold; holders can redeem their position instead.
@@ -108,6 +147,23 @@ export interface Course {
 	deprecationReason?: string | null;
 	/** Performance bond status for creator key protection (#975). */
 	performanceBond?: PerformanceBond | null;
+	/**
+	 * Key-level circuit breaker price impact threshold in basis points (e.g. 1500 = 15%) (#1034).
+	 * Buy orders whose price impact equals or exceeds this threshold will be halted.
+	 */
+	circuitBreakerThresholdBps?: number | null;
+	/** Key-level circuit breaker price impact threshold in percent (e.g. 15 = 15%) (#1034). */
+	circuitBreakerThresholdPercent?: number | null;
+	/** Whether the early access whitelist gate is enabled for this creator key (#1031). */
+	isWhitelistEnabled?: boolean;
+	whitelistEnabled?: boolean;
+	/** Approved wallet addresses on the early access whitelist (#1031). */
+	whitelist?: WhitelistEntry[];
+}
+
+export interface WhitelistEntry {
+	walletAddress: string;
+	addedAt: string;
 }
 
 export interface CurveMilestone {
@@ -131,6 +187,28 @@ export interface GraduatedCurveConfig {
  * spread between the current buy (ask) and sell (bid) price. All prices are
  * in stroops (1 XLM = 10,000,000 stroops).
  */
+/**
+ * Trade cooldown status for a creator key (#998).
+ *
+ * Returned by `GET /keys/:keyId/trade-cooldown` and consumed by the disabled
+ * buy/sell buttons' countdown. `nextBuyAllowedAt` is the absolute timestamp
+ * after which the authenticated wallet may trade the key again; it is `null`
+ * when no cooldown is in effect for the caller.
+ */
+export interface TradeCooldownInfo {
+	/** Key this cooldown status belongs to, when the backend echoes it back. */
+	keyId?: string;
+	/**
+	 * Absolute timestamp (seconds epoch, ms epoch, or ISO string) after which
+	 * trading is allowed again. `null` means no cooldown is in effect.
+	 */
+	nextBuyAllowedAt?: number | string | null;
+	/** Cooldown policy length in seconds, when reported explicitly. */
+	cooldownDurationSeconds?: number | null;
+	/** Cooldown policy length in Stellar ledgers (~5s each), when reported. */
+	cooldownDurationLedgers?: number | null;
+}
+
 export interface KeyConfig {
 	/** Key this config belongs to, when the backend echoes it back. */
 	keyId?: string;
@@ -142,6 +220,14 @@ export interface KeyConfig {
 	spreadStroops?: number | null;
 	/** Spread expressed in basis points of the buy price, when reported. */
 	spreadBps?: number | null;
+	/** Maximum holding cap per wallet, when reported by the key config endpoint (#1015). */
+	holdingCap?: number | null;
+	/** Alias for holdingCap — maximum holding cap per wallet (#1015). */
+	maxHoldingCap?: number | null;
+	/** Key-level circuit breaker price impact threshold in basis points (#1034). */
+	circuitBreakerThresholdBps?: number | null;
+	/** Key-level circuit breaker price impact threshold in percent (#1034). */
+	circuitBreakerThresholdPercent?: number | null;
 }
 
 /**
@@ -244,6 +330,13 @@ export interface GetCoursesParams {
 	sort?: CourseSortOption;
 }
 
+export type PriceHistoryInterval = '1h' | '24h' | '7d';
+
+export interface PriceHistoryPoint {
+	timestamp: string;
+	price: number;
+}
+
 /** Raw envelope shape for a paginated /courses response. */
 interface CoursesPageEnvelope {
 	items?: Course[];
@@ -315,6 +408,21 @@ export interface KeyStats {
 	twap24h: number | null;
 }
 
+
+/** Single bid placed during a key's pre-launch auction window (#924). */
+export interface AuctionBidEntry {
+	/** Unique bid id from the contract. */
+	id: string;
+	/** Wallet that placed the bid. */
+	bidderAddress: string;
+	/** Optional display name for the bidder. */
+	bidderName?: string;
+	/** Bid amount in XLM. */
+	amount: number;
+	/** ISO timestamp when the bid was placed. */
+	placedAt: string;
+}
+
 /**
  * Unique trader count for a creator key (#1020): distinct wallets that have
  * bought or sold the key at least once.
@@ -324,6 +432,7 @@ export interface KeyUniqueTraders {
 	uniqueTraders: number | null;
 	/** Unique trader count as of 24 hours ago, used for the trend indicator. */
 	uniqueTraders24hAgo: number | null;
+
 }
 
 class CourseService extends BaseApiService {
@@ -409,6 +518,23 @@ class CourseService extends BaseApiService {
 		}
 	}
 
+	// Get bonding curve price history - GET /keys/:keyId/price-history
+	async getPriceHistory(
+		keyId: string,
+		interval: PriceHistoryInterval
+	): Promise<PriceHistoryPoint[]> {
+		try {
+			const response = await this.api.get<APIResponse<PriceHistoryPoint[]>>(
+				`/keys/${keyId}/price-history`,
+				{ params: { interval } }
+			);
+
+			return response.data.data;
+		} catch (error) {
+			throw this.handleError(error);
+		}
+	}
+
 	// Get key holders - GET /keys/:keyId/holders
 	async getHoldersPage(
 		keyId: string,
@@ -449,6 +575,23 @@ class CourseService extends BaseApiService {
 				`/keys/${keyId}/stats`
 			);
 			return response.data.data;
+		} catch (error) {
+			throw this.handleError(error);
+		}
+	}
+
+
+	/**
+	 * Get the live pre-launch auction bid history for a key (#924) —
+	 * GET /keys/:keyId/auction/bids. Returns the bids newest first so the
+	 * client can render the current leader without extra sorting.
+	 */
+	async getAuctionBids(keyId: string): Promise<AuctionBidEntry[]> {
+		try {
+			const response = await this.api.get<
+				APIResponse<AuctionBidEntry[]>
+			>(`/keys/${keyId}/auction/bids`);
+			return response.data.data ?? [];
 		} catch (error) {
 			throw this.handleError(error);
 		}
@@ -656,6 +799,23 @@ class CourseService extends BaseApiService {
 			);
 			return response.data.data;
 		} catch (error) {
+			throw this.handleError(error);
+		}
+	}
+
+	// Get trade cooldown status - GET /keys/:keyId/trade-cooldown (#998)
+	async getTradeCooldownStatus(keyId: string): Promise<TradeCooldownInfo | null> {
+		try {
+			const response = await this.api.get<APIResponse<TradeCooldownInfo>>(
+				`/keys/${keyId}/trade-cooldown`
+			);
+			return response.data.data;
+		} catch (error: unknown) {
+			if (error instanceof ApiError && error.status === 404) {
+				// No cooldown concept deployed for this key yet — treat as
+				// "no cooldown data" so buttons stay enabled.
+				return null;
+			}
 			throw this.handleError(error);
 		}
 	}
