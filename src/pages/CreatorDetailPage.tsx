@@ -6,29 +6,17 @@ import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { useCreatorProfileStaleIndicator } from '@/hooks/useCreatorProfileStaleIndicator';
 import CreatorBreadcrumb from '@/components/common/CreatorBreadcrumb';
 import CreatorProfileHeader from '@/components/common/CreatorProfileHeader';
-import CreatorProfileInfoGrid from '@/components/common/CreatorProfileInfoGrid';
 import CreatorActivityFeed from '@/components/common/CreatorActivityFeed';
-import CreatorProfileStaleIndicator from '@/components/common/CreatorProfileStaleIndicator';
 import CreatorProfileStatRow from '@/components/common/CreatorProfileStatRow';
 import BondingCurveChart from '@/components/common/BondingCurveChart';
-import KeySimulationTool from '@/components/common/KeySimulationTool';
 import BuyCooldownCountdown from '@/components/common/BuyCooldownCountdown';
-import TradeCooldownButton from '@/components/common/TradeCooldownButton';
-import {
-	useTradeCooldownStatus,
-	invalidateTradeCooldownStatus,
-	resolveActiveTradeCooldown,
-} from '@/hooks/useTradeCooldownStatus';
-import type { ActiveTradeCooldown } from '@/utils/tradeCooldown.utils';
-import { isActiveCooldown } from '@/utils/tradeCooldown.utils';
-import KeyHolderList from '@/components/common/KeyHolderList';
-import HolderConcentrationChart from '@/components/common/HolderConcentrationChart';
 import StakingRewardsSection from '@/components/common/StakingRewardsSection';
 import DeprecationNotice from '@/components/common/DeprecationNotice';
+import SubscriptionAccessGate from '@/components/common/SubscriptionAccessGate';
 import { isKeyDeprecated } from '@/utils/keyDeprecation.utils';
 import { Button } from '@/components/ui/button';
 import { CreatorDashboardSkeleton } from '@/components/common/CreatorSkeleton';
-import { bpsToPercent, formatNumber } from '@/utils/numberFormat.utils';
+import { formatNumber } from '@/utils/numberFormat.utils';
 import {
 	resolveCreatorKeyPriceStroops,
 	formatDisplayKeyPrice,
@@ -40,7 +28,6 @@ import { useNavigationTiming } from '@/hooks/useNavigationTiming';
 import { useKeyHolders } from '@/hooks/useKeyHolders';
 import { useProfileStore } from '@/hooks/useProfileStore';
 import { useWalletHoldings, useTradeMutation } from '@/hooks/useWallet';
-import CoCreatorSection from '@/components/creator/CoCreatorSection';
 import ShareTwitterButton from '@/components/common/ShareTwitterButton';
 import { PriceHistoryChart } from '@/components/common/PriceHistoryChart';
 import type { PriceHistoryInterval } from '@/services/course.service';
@@ -59,7 +46,6 @@ import { useKeyConfig } from '@/hooks/useKeyConfig';
 import KeyStatsPanel from '@/components/common/KeyStatsPanel';
 import Skeleton from '@/components/ui/skeleton';
 import { Tooltip } from '@/components/ui/tooltip';
-import GraduatedCurveMilestoneChart from '@/components/common/GraduatedCurveMilestoneChart';
 import KeyDeprecationBanner from '@/components/common/KeyDeprecationBanner';
 import MergeProposalBanner from '@/components/common/MergeProposalBanner';
 import KeyBuybackModal from '@/components/common/KeyBuybackModal';
@@ -67,7 +53,9 @@ import type { KeyBuybackReceipt } from '@/hooks/useKeyBuyback';
 import { usePerformanceBond } from '@/hooks/usePerformanceBond';
 import PerformanceBondPanel from '@/components/common/PerformanceBondPanel';
 import WhitelistStatusBadge from '@/components/common/WhitelistStatusBadge';
-
+import { useTradeCooldownStatus, invalidateTradeCooldownStatus, resolveActiveTradeCooldown } from '@/hooks/useTradeCooldownStatus';
+import { isActiveCooldown, type ActiveTradeCooldown } from '@/utils/tradeCooldown.utils';
+import TradeCooldownButton from '@/components/common/TradeCooldownButton';
 function CreatorDetailPageContent() {
 	usePurchaseConfetti();
 
@@ -114,8 +102,7 @@ function CreatorDetailPageContent() {
 		});
 	}, [creator, recordVisit]);
 
-	const { holders, hasNextPage, isFetchingNextPage, fetchNextPage } =
-		useKeyHolders(id || '');
+	useKeyHolders(id || '');
 
 	// User holdings for Share to X button
 	const profile = useProfileStore(state => state.profile);
@@ -178,7 +165,7 @@ function CreatorDetailPageContent() {
 	const isLockedOut = isWhitelistGateActive && !isUserWhitelisted;
 
 	// Track stale data indicator
-	const { shouldShowBadge, handleRefetch } = useCreatorProfileStaleIndicator(
+	useCreatorProfileStaleIndicator(
 		id || '',
 		isFetching,
 		() => refetch()
@@ -268,18 +255,7 @@ function CreatorDetailPageContent() {
 		throw error;
 	}
 
-	const feeItems = [
-		{
-			label: 'Creator fee',
-			value: bpsToPercent(creator.creatorFeeBps),
-			helperText: 'Fee paid directly to the creator on each trade.',
-		},
-		{
-			label: 'Protocol fee',
-			value: bpsToPercent(creator.protocolFeeBps),
-			helperText: 'Fee paid to the platform for protocol maintenance.',
-		},
-	];
+
 
 	const statItems = [
 		{
@@ -574,77 +550,25 @@ function CreatorDetailPageContent() {
 					height={300}
 				/>
 				</div>
-				<GraduatedCurveMilestoneChart
-					keyId={creator.id}
-					currentSupply={creator.creatorShareSupply ?? 0}
-				/>
-				{/* Buy Simulation Tool */}
-				<KeySimulationTool
-					currentSupply={creator.creatorShareSupply ?? 100}
-					protocolFeeBps={creator.protocolFeeBps}
-					creatorFeeBps={creator.creatorFeeBps}
-				/>
-				{/* Holder Concentration */}
-				<div
-					className="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 shadow-2xl backdrop-blur-md md:p-8"
-					data-testid="holder-concentration-container"
-				>
-					<h2 className="font-grotesque text-xl font-black tracking-tight text-white mb-6">
-						Holder Concentration
-					</h2>
-					<HolderConcentrationChart
-						holders={holders}
-						totalSupply={creator.creatorShareSupply}
-					/>
-				</div>
-				{/* Fee Structure */}
+
+				{/* Gated Content */}
 				<div className="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 shadow-2xl backdrop-blur-md md:p-8">
-					<div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-						<h2 className="font-grotesque text-xl font-black tracking-tight text-white">
-							Fee Structure
-						</h2>
-						<CreatorProfileStaleIndicator
-							visible={shouldShowBadge}
-							isRefetching={isFetching}
-							onRefresh={handleRefetch}
-						/>
-					</div>
-					<CreatorProfileInfoGrid items={feeItems} />
+					<h2 className="font-grotesque text-xl font-black tracking-tight text-white mb-6">
+						Exclusive Content
+					</h2>
+					<SubscriptionAccessGate 
+						creatorId={creator.id} 
+						minimumHolding={1}
+						onBuyClick={() => setBuyDialogOpen(true)}
+					>
+						<div className="rounded-xl bg-white/[0.03] p-6 border border-white/10">
+							<p className="text-white/80">
+								🎉 Welcome to the exclusive content section! Here you can access premium videos, articles, and perks from {creator.title || creator.name || 'this creator'}.
+							</p>
+						</div>
+					</SubscriptionAccessGate>
 				</div>
-				{/* Co-Creator Section */}{' '}
-				<CoCreatorSection
-					courseId={creator.id}
-					coCreatorAddress={creator.coCreatorAddress}
-					coCreatorSplitBps={creator.coCreatorSplitBps}
-					totalPaidToCoCreator={creator.totalPaidToCoCreator}
-					totalPaidToCreator={creator.totalPaidToCreator}
-				/>
-				{/* Key Holders */}
-				<div
-					data-testid="creator-holders-container"
-					className="rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 shadow-2xl backdrop-blur-md md:p-8"
-				>
-					<div className="flex items-center justify-between gap-4 mb-6">
-						<h2 className="font-grotesque text-xl font-black tracking-tight text-white">
-							Key Holders
-						</h2>
-						<Link
-							to={`/creator/${id}/leaderboard`}
-							className="text-sm font-semibold text-amber-300 hover:text-amber-200 transition-colors"
-							data-testid="view-leaderboard-link"
-						>
-							View Leaderboard →
-						</Link>
-					</div>
-					<KeyHolderList
-						holders={holders}
-						hasNextPage={hasNextPage}
-						isFetchingNextPage={isFetchingNextPage}
-						fetchNextPage={() => {
-							void fetchNextPage();
-						}}
-					/>
-				</div>
+
 				<div className="mt-8 rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 shadow-2xl backdrop-blur-md md:p-8">
 					<h2 className="font-grotesque text-xl font-black tracking-tight text-white mb-6">
 						Activity
@@ -659,15 +583,14 @@ function CreatorDetailPageContent() {
 						creatorId={creator.id}
 						creatorTitle={creator.title || creator.name || 'Creator Key'}
 						holdingsCount={holdingsCount}
-						buybackPriceStroops={
-							resolveCreatorKeyPriceStroops(creator) ?? 0
-						}
+						buybackPriceStroops={resolveCreatorKeyPriceStroops(creator) ?? 0}
 						userAddress={userAddress}
 						onSettled={receipt => {
 							setRecentSettlement(receipt);
 						}}
 					/>
 				)}
+
 				{creator && (
 					<TradeDialog
 						open={buyDialogOpen}
@@ -677,14 +600,9 @@ function CreatorDetailPageContent() {
 						keyPriceStroops={resolveCreatorKeyPriceStroops(creator)}
 						currentSupply={creator.creatorShareSupply}
 						maxBuyQuantity={creator.maxBuyQuantity}
-						holdingCap={creator.holdingCap ?? creator.maxHoldingCap}
 						launchPenaltyBps={creator.launchPenaltyBps}
 						keyConfig={keyConfig}
 						isKeyConfigLoading={isKeyConfigLoading}
-						circuitBreakerThresholdPercent={
-							creator.circuitBreakerThresholdPercent
-						}
-						circuitBreakerThresholdBps={creator.circuitBreakerThresholdBps}
 						onOpenChange={setBuyDialogOpen}
 						onConfirm={handleConfirmBuy}
 						isSubmitting={tradeSubmitting}
