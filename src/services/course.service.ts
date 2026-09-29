@@ -1,6 +1,7 @@
 // src/services/course.service.ts
 import { BaseApiService, ApiError, type APIResponse } from './api.service';
 import type { CreatorSocialLinks } from '@/types/creatorProfile';
+import type { ContractDynamicFeeRate } from '@/utils/dynamicFeeRate.utils';
 import { cacheManager } from '@/utils/cache.utils';
 
 export interface Course {
@@ -688,6 +689,28 @@ class CourseService extends BaseApiService {
 			);
 			return response.data.data;
 		} catch (error) {
+			throw this.handleError(error);
+		}
+	}
+
+	// Get the dynamic fee rate from the contract - GET /keys/:keyId/fee-rate (#994)
+	async getDynamicFeeRate(
+		keyId: string,
+		config?: { signal?: AbortSignal }
+	): Promise<ContractDynamicFeeRate> {
+		try {
+			const response = await this.api.get<APIResponse<ContractDynamicFeeRate>>(
+				`/keys/${keyId}/fee-rate`,
+				{ signal: config?.signal }
+			);
+			return response.data.data;
+		} catch (error) {
+			// Cancellation must propagate untouched so callers can ignore it.
+			const name = (error as { name?: string } | null)?.name;
+			const code = (error as { code?: string } | null)?.code;
+			if (name === 'CanceledError' || name === 'AbortError' || code === 'ERR_CANCELED') {
+				throw error;
+			}
 			throw this.handleError(error);
 		}
 	}
