@@ -134,7 +134,7 @@ export default function HolderLeaderboardPage() {
 	const queryClient = useQueryClient();
 	const profile = useProfileStore(state => state.profile);
 	const userAddress = profile?.id?.toLowerCase();
-	
+
 	const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
 
 	const {
@@ -172,7 +172,7 @@ export default function HolderLeaderboardPage() {
 
 	// Rank holders and limit to top 100
 	const rankedHolders = rankKeyHolders(holders).slice(0, TOP_HOLDERS_LIMIT);
-	
+
 	// Find connected wallet rank
 	const connectedWalletRank = userAddress
 		? rankedHolders.findIndex(h => h.walletAddress?.toLowerCase() === userAddress)
