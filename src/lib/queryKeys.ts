@@ -23,6 +23,8 @@ export const queryKeys = {
 		infiniteList: (params?: Omit<GetCoursesParams, 'page'>) =>
 			['creators', 'infiniteList', params ?? null] as const,
 		detail: (id: string) => ['creators', 'detail', id] as const,
+		onChainMetadata: (creatorId: string) =>
+			['creators', creatorId, 'onChainMetadata'] as const,
 		priceHistory: (creatorId: string, interval: string) =>
 			['creators', creatorId, 'priceHistory', interval] as const,
 		holders: (creatorId: string) =>
