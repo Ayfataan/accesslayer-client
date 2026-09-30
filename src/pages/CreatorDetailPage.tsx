@@ -17,6 +17,7 @@ import KeySimulationTool from '@/components/common/KeySimulationTool';
 import BuyCooldownCountdown from '@/components/common/BuyCooldownCountdown';
 import StakingRewardsSection from '@/components/common/StakingRewardsSection';
 import DeprecationNotice from '@/components/common/DeprecationNotice';
+import DeprecationBanner from '@/components/common/DeprecationBanner';
 import SubscriptionAccessGate from '@/components/common/SubscriptionAccessGate';
 import { isKeyDeprecated } from '@/utils/keyDeprecation.utils';
 import { Button } from '@/components/ui/button';
@@ -81,6 +82,7 @@ function CreatorDetailPageContent() {
 	const [buybackModalOpen, setBuybackModalOpen] = useState(false);
 	const [recentSettlement, setRecentSettlement] =
 		useState<KeyBuybackReceipt | null>(null);
+	const [deprecationDismissed, setDeprecationDismissed] = useState(false);
 	const {
 		data: creator,
 		isLoading,
@@ -390,6 +392,12 @@ function CreatorDetailPageContent() {
 	return (
 		<main className="min-h-screen bg-[#06111f] px-6 py-16 text-white md:px-12">
 			<div className="mx-auto max-w-7xl space-y-8">
+				{creator.deprecation && !deprecationDismissed && (
+					<DeprecationBanner
+						deprecation={creator.deprecation}
+						onDismiss={() => setDeprecationDismissed(true)}
+					/>
+				)}
 				<CreatorBreadcrumb
 					parentLabel="Marketplace"
 					parentHref="/"
