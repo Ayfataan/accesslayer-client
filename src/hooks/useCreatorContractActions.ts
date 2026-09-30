@@ -61,6 +61,9 @@ export function useUpdateMetadataMutation(creatorId: string) {
 			queryClient.invalidateQueries({
 				queryKey: queryKeys.creators.detail(creatorId),
 			});
+			queryClient.invalidateQueries({
+				queryKey: queryKeys.creators.onChainMetadata(creatorId),
+			});
 			showToast.success('Profile metadata updated');
 		},
 	});
