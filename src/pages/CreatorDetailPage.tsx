@@ -4,6 +4,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCreatorDetail, usePriceHistory } from '@/hooks/useCreators';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { useCreatorProfileStaleIndicator } from '@/hooks/useCreatorProfileStaleIndicator';
+import { useOnChainMetadata } from '@/hooks/useOnChainMetadata';
+import { resolveIpfsUrl } from '@/utils/ipfs.utils';
 import CreatorBreadcrumb from '@/components/common/CreatorBreadcrumb';
 import CreatorProfileHeader from '@/components/common/CreatorProfileHeader';
 import CreatorProfileInfoGrid from '@/components/common/CreatorProfileInfoGrid';
@@ -15,6 +17,7 @@ import KeySimulationTool from '@/components/common/KeySimulationTool';
 import BuyCooldownCountdown from '@/components/common/BuyCooldownCountdown';
 import StakingRewardsSection from '@/components/common/StakingRewardsSection';
 import DeprecationNotice from '@/components/common/DeprecationNotice';
+import DeprecationBanner from '@/components/common/DeprecationBanner';
 import SubscriptionAccessGate from '@/components/common/SubscriptionAccessGate';
 import { isKeyDeprecated } from '@/utils/keyDeprecation.utils';
 import { Button } from '@/components/ui/button';
@@ -84,6 +87,7 @@ function CreatorDetailPageContent() {
 	const [shareModalOpen, setShareModalOpen] = useState(false);
 	const [lastPurchasedAmount, setLastPurchasedAmount] =
 		useState<number | null>(null);
+	const [deprecationDismissed, setDeprecationDismissed] = useState(false);
 	const {
 		data: creator,
 		isLoading,
@@ -194,12 +198,34 @@ function CreatorDetailPageContent() {
 	const isLockedOut = isWhitelistGateActive && !isUserWhitelisted;
 
 
-	// Track stale data indicator
+	// On-chain metadata fetch (#1033)
+	const {
+		data: onChainMetadata,
+		isLoading: isOnChainLoading,
+		isError: isOnChainError,
+		refetch: refetchOnChainMetadata,
+	} = useOnChainMetadata(id || '');
+
+	const isFallbackActive = isOnChainError || !onChainMetadata;
+	const metadata = onChainMetadata ?? {};
+
+	const displayName = metadata.name || creator?.title || creator?.name || 'Unnamed creator';
+	const displaySymbol = metadata.symbol;
+	const displayDescription = metadata.description || creator?.description || creator?.bio;
+	const rawAvatar = metadata.image || metadata.imageCid || metadata.image_cid || metadata.ipfsCid || metadata.ipfs_cid || metadata.avatarUri || metadata.avatar_uri || metadata.cid;
+	const displayAvatar = resolveIpfsUrl(rawAvatar) || creator?.avatarUri || creator?.thumbnail;
+
+	// Track stale data indicator (including fallback active state)
 	const { shouldShowBadge, handleRefetch } = useCreatorProfileStaleIndicator(
 		id || '',
-		isFetching,
-		() => refetch()
+		isFetching || isOnChainLoading,
+		() => {
+			void refetch();
+			void refetchOnChainMetadata();
+		}
 	);
+
+	const showStaleIndicator = shouldShowBadge || isFallbackActive;
 
 	const [buyDialogOpen, setBuyDialogOpen] = useState(false);
 	const [tradeSubmitting, setTradeSubmitting] = useState(false);
@@ -373,6 +399,12 @@ function CreatorDetailPageContent() {
 	return (
 		<main className="min-h-screen bg-[#06111f] px-6 py-16 text-white md:px-12">
 			<div className="mx-auto max-w-7xl space-y-8">
+				{creator.deprecation && !deprecationDismissed && (
+					<DeprecationBanner
+						deprecation={creator.deprecation}
+						onDismiss={() => setDeprecationDismissed(true)}
+					/>
+				)}
 				<CreatorBreadcrumb
 					parentLabel="Marketplace"
 					parentHref="/"
@@ -395,16 +427,26 @@ function CreatorDetailPageContent() {
 					isConnected={Boolean(userAddress)}
 				/>
 				<div className="flex items-start gap-3">
-					<div className="min-w-0 flex-1">
+					<div className="min-w-0 flex-1 space-y-2">
+						<CreatorProfileStaleIndicator
+							visible={showStaleIndicator}
+							isRefetching={isFetching || isOnChainLoading}
+							onRefresh={() => {
+								void refetch();
+								void refetchOnChainMetadata();
+							}}
+						/>
 						<CreatorProfileHeader
-							name={creator.title}
+							name={displayName}
+							symbol={displaySymbol}
 							handle={creator.socialHandle || creator.instructorId}
 							creatorId={creator.id}
 							isVerified={creator.isVerified}
-							avatarUrl={creator.thumbnail}
-							bio={creator.description}
+							avatarUrl={displayAvatar}
+							bio={displayDescription}
 							priceStroops={resolveCreatorKeyPriceStroops(creator)}
 							showBackButton={hasMounted}
+							isOnChainLoading={isOnChainLoading}
 							onBack={() => {
 								if (
 									window.history.length > 1 &&
@@ -419,7 +461,7 @@ function CreatorDetailPageContent() {
 					</div>
 					<WatchlistButton
 						creator={creator}
-						labelName={creator.title}
+						labelName={displayName}
 						// ≥44px tap target on mobile (WCAG 2.5.5); compact on sm+.
 						className="mt-3 size-11 shrink-0 sm:size-9"
 					/>

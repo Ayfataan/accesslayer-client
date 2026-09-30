@@ -1,6 +1,7 @@
 // src/services/course.service.ts
 import { BaseApiService, ApiError, type APIResponse } from './api.service';
 import type { CreatorSocialLinks } from '@/types/creatorProfile';
+import type { ContractDynamicFeeRate } from '@/utils/dynamicFeeRate.utils';
 import { cacheManager } from '@/utils/cache.utils';
 
 export interface Course {
@@ -44,6 +45,20 @@ export interface Course {
 	holders?: number;
 	/** XLM currently held in the staking reward pool for this key. */
 	stakingPoolBalance?: number;
+	/**
+	 * Deprecation record for this key (issue #996), when deprecated.
+	 * Shape matches DeprecationBanner's KeyDeprecation props.
+	 */
+	deprecation?: {
+		/** ISO 8601 date the key was (or will be) deprecated. */
+		deprecatedAt: string;
+		/** Human-readable reason the key was deprecated. */
+		reason: string;
+		/** Successor key's creator id, when one has been designated. */
+		successorId?: string;
+		/** Display name of the successor key, for the CTA label. */
+		successorName?: string;
+	};
 	/** Number of keys staked across all holders. */
 	totalStaked?: number;
 	/** Protocol fees that flowed into the staking pool over the last month. */
@@ -740,6 +755,28 @@ class CourseService extends BaseApiService {
 			);
 			return response.data.data;
 		} catch (error) {
+			throw this.handleError(error);
+		}
+	}
+
+	// Get the dynamic fee rate from the contract - GET /keys/:keyId/fee-rate (#994)
+	async getDynamicFeeRate(
+		keyId: string,
+		config?: { signal?: AbortSignal }
+	): Promise<ContractDynamicFeeRate> {
+		try {
+			const response = await this.api.get<APIResponse<ContractDynamicFeeRate>>(
+				`/keys/${keyId}/fee-rate`,
+				{ signal: config?.signal }
+			);
+			return response.data.data;
+		} catch (error) {
+			// Cancellation must propagate untouched so callers can ignore it.
+			const name = (error as { name?: string } | null)?.name;
+			const code = (error as { code?: string } | null)?.code;
+			if (name === 'CanceledError' || name === 'AbortError' || code === 'ERR_CANCELED') {
+				throw error;
+			}
 			throw this.handleError(error);
 		}
 	}

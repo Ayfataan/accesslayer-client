@@ -23,6 +23,8 @@ export const queryKeys = {
 		infiniteList: (params?: Omit<GetCoursesParams, 'page'>) =>
 			['creators', 'infiniteList', params ?? null] as const,
 		detail: (id: string) => ['creators', 'detail', id] as const,
+		onChainMetadata: (creatorId: string) =>
+			['creators', creatorId, 'onChainMetadata'] as const,
 		priceHistory: (creatorId: string, interval: string) =>
 			['creators', creatorId, 'priceHistory', interval] as const,
 		holders: (creatorId: string) =>
@@ -73,8 +75,10 @@ export const queryKeys = {
 		activity: (address: string) => ['wallet', address, 'activity'] as const,
 		tradeHistory: (address: string) =>
 			['wallet', address, 'tradeHistory'] as const,
-		stakingPositions: (address: string) =>
-			['wallet', address, 'stakingPositions'] as const,
+	vestingPositions: (address: string) =>
+		['wallet', address, 'vestingPositions'] as const,
+	stakingPositions: (address: string) =>
+		['wallet', address, 'stakingPositions'] as const,
 		xlmBalance: (address: string) =>
 			['wallet', address, 'xlmBalance'] as const,
 	},
